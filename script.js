@@ -188,13 +188,32 @@ function applyTheme() {
 // ============================================================
 // Каталог "загружаемых" утилит. В реальном проекте эти данные стоит
 // получать с бэкенда (см. bot.py + отдельный API), здесь — заглушка.
+// Каждая запись — как карточка реального Google Play: рейтинг, число оценок, размер файла.
+// Реальные иконки/данные из настоящего Play Маркета получить нельзя — у Google нет публичного
+// API для стороннего каталога, поэтому здесь пример-заглушка в том же визуальном стиле.
 const STORE_CATALOG = [
-  { id: "calc", name: "Калькулятор", icon: "🧮", desc: "Простые вычисления", render: renderCalcApp },
-  { id: "weather", name: "Погода", icon: "☀️", desc: "Заглушка прогноза", render: renderWeatherApp },
+  { id: "calc", name: "Калькулятор", icon: "🧮", desc: "Инструменты", rating: 4.6, votes: "12К", size: "1.2 МБ", render: renderCalcApp },
+  { id: "weather", name: "Погода", icon: "☀️", desc: "Погода и время", rating: 4.4, votes: "8.7К", size: "3.4 МБ", render: renderWeatherApp },
 ];
 
+function starRating(rating) {
+  // рисует рейтинг звёздочкой + числом, как в карточке Play Маркета
+  return `<span class="stars">★</span> ${rating.toFixed(1)}`;
+}
+
 function renderStoreApp(container) {
-  container.innerHTML = "";
+  container.innerHTML = `
+    <div class="store-search">🔍 <span>Поиск игр и приложений</span></div>
+    <div class="store-tabs">
+      <span class="store-tab active">Для вас</span>
+      <span class="store-tab">Топ чарты</span>
+      <span class="store-tab">Категории</span>
+    </div>
+    <div id="store-list"></div>
+  `;
+
+  const list = container.querySelector("#store-list");
+
   STORE_CATALOG.forEach((item) => {
     const installed = state.installedApps.includes(item.id);
 
@@ -205,6 +224,7 @@ function renderStoreApp(container) {
       <div class="store-item-info">
         <div class="store-item-title">${item.name}</div>
         <div class="store-item-desc">${item.desc}</div>
+        <div class="store-item-meta">${starRating(item.rating)} · ${item.votes} отзывов · ${item.size}</div>
       </div>
       <button class="btn-install ${installed ? "installed" : ""}">
         ${installed ? "Открыть" : "Установить"}
@@ -222,7 +242,7 @@ function renderStoreApp(container) {
       }
     });
 
-    container.appendChild(row);
+    list.appendChild(row);
   });
 }
 
