@@ -1,13 +1,14 @@
-/* ============ ПЕРЕМЕННЫЕ ЦВЕТОВОЙ СХЕМЫ ONE UI ============ */
+/* ============ ПЕРЕМЕННЫЕ ЦВЕТОВОЙ СХЕМЫ ONE UI 8.5 ============ */
 :root {
-  --oneui-bg: #F2F3F5;          /* фон рабочего стола — светло-серый */
+  --oneui-bg: #F1F2F6;          /* фон рабочего стола — светло-серый с холодным оттенком */
   --oneui-card: #FFFFFF;        /* карточки/иконки/окна — белый */
-  --oneui-accent: #1A73E8;      /* акцентный синий, как у Samsung */
+  --oneui-accent: #1259C3;      /* акцентный синий One UI 8.5 (чуть темнее и глубже, чем раньше) */
   --oneui-text-main: #1C1C1E;   /* основной текст, почти чёрный */
   --oneui-text-sub: #6B7076;    /* второстепенный текст */
-  --oneui-radius-lg: 28px;      /* крупное скругление (окна, виджеты) */
-  --oneui-radius-md: 20px;      /* среднее скругление (иконки) */
-  --oneui-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --oneui-radius-lg: 32px;      /* крупное скругление (окна, виджеты) — в 8.5 углы ещё мягче */
+  --oneui-radius-md: 22px;      /* среднее скругление (иконки) */
+  --oneui-shadow: 0 10px 28px rgba(0, 0, 0, 0.09);
+  --play-green: #0F9D58;        /* фирменный зелёный кнопки "Установить" в Play Маркете */
 }
 
 /* Сброс отступов и подключение системного шрифта, похожего на SamsungOne */
@@ -68,8 +69,11 @@ html, body {
   display: grid;
   grid-template-columns: repeat(4, 1fr); /* 4 иконки в ряд, как на смартфоне */
   gap: 20px 12px;
-  padding: 24px 20px;
+  padding: 24px 20px 100px; /* нижний отступ под плавающий док */
   overflow-y: auto; /* если приложений много — скроллим сетку */
+  /* мягкое исчезновение контента у верхнего края вместо резкого обрезания — фишка One UI 8.5 */
+  mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 40px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 40px), transparent 100%);
 }
 
 .app-icon {
@@ -89,9 +93,10 @@ html, body {
   align-items: center;
   justify-content: center;
   font-size: 26px;
-  background: var(--oneui-card);
+  /* лёгкий градиент вместо плоского белого — придаёт иконкам глубину, как в One UI 8.5 */
+  background: linear-gradient(160deg, #FFFFFF 0%, #F4F5F8 100%);
   border-radius: var(--oneui-radius-md);
-  box-shadow: var(--oneui-shadow);
+  box-shadow: var(--oneui-shadow), inset 0 1px 0 rgba(255,255,255,0.6);
   transition: transform 0.15s ease; /* лёгкий "пружинистый" отклик на тап */
 }
 .app-icon:active .icon-glyph {
@@ -104,21 +109,27 @@ html, body {
   text-align: center;
 }
 
-/* ============ ДОК ВНИЗУ ЭКРАНА ============ */
+/* ============ ДОК ВНИЗУ ЭКРАНА (плавающий, как в One UI 8.5) ============ */
 .dock {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px); /* эффект матового стекла из One UI */
-  border-top-left-radius: var(--oneui-radius-lg);
-  border-top-right-radius: var(--oneui-radius-lg);
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px); /* эффект матового стекла, усиленный в 8.5 */
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 999px; /* полностью капсульная форма — доки в 8.5 "плавают" над контентом */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
 }
 .dock .app-icon .icon-glyph {
-  width: 50px;
-  height: 50px;
+  width: 46px;
+  height: 46px;
   box-shadow: none;
+  background: transparent;
 }
 
 /* ============ ОКНА ПРИЛОЖЕНИЙ ============ */
@@ -171,40 +182,101 @@ html, body {
   padding: 18px;
 }
 
-/* ============ ЭЛЕМЕНТЫ МАГАЗИНА ПРИЛОЖЕНИЙ ============ */
+/* ============ МАГАЗИН — ВИЗУАЛЬНЫЙ СТИЛЬ GOOGLE PLAY ============ */
+
+/* Строка поиска сверху, как в Play Маркете */
+.store-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--oneui-bg);
+  border-radius: 999px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  color: var(--oneui-text-sub);
+  font-size: 14px;
+}
+
+/* Горизонтальные вкладки-чипы ("Топ чарты", "Для вас" и т.п.) */
+.store-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+}
+.store-tab {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--oneui-bg);
+  color: var(--oneui-text-sub);
+}
+.store-tab.active {
+  background: var(--oneui-accent);
+  color: #fff;
+}
+
+/* Карточка приложения — крупная иконка, рейтинг звёздами, зелёная кнопка Play Store */
 .store-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 0;
+  padding: 14px 0;
   border-bottom: 1px solid #F1F2F4;
 }
 .store-item .icon-glyph {
-  width: 46px;
-  height: 46px;
+  width: 56px;
+  height: 56px;
   border-radius: var(--oneui-radius-md);
-  background: var(--oneui-bg);
+  background: linear-gradient(160deg, #FFFFFF 0%, var(--oneui-bg) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 26px;
+  flex-shrink: 0;
 }
-.store-item-info { flex: 1; }
-.store-item-title { font-weight: 600; font-size: 14px; }
-.store-item-desc { font-size: 12px; color: var(--oneui-text-sub); }
+.store-item-info { flex: 1; min-width: 0; }
+.store-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.store-item-desc {
+  font-size: 12px;
+  color: var(--oneui-text-sub);
+  margin-top: 2px;
+}
+.store-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--oneui-text-sub);
+  margin-top: 3px;
+}
+.store-item-meta .stars { color: #FFA000; } /* жёлтый цвет рейтинга, как в Play Маркете */
 
 .btn-install {
   border: none;
-  background: var(--oneui-accent);
+  background: var(--play-green); /* зелёная кнопка — фирменный цвет Play Маркета */
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: 999px; /* капсульная кнопка — фирменный элемент One UI */
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 .btn-install.installed {
-  background: #E4E6E9;
+  background: transparent;
   color: var(--oneui-text-sub);
+  border: 1.5px solid #D8DADD;
 }
 
 /* ============ ЭЛЕМЕНТЫ НАСТРОЕК ============ */
