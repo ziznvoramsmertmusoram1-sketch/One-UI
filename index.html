@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>OneUI OS</title>
+
+  <!-- Подключаем официальный JS SDK Telegram Mini Apps -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===================== РАБОЧИЙ СТОЛ ===================== -->
+  <div id="desktop" class="screen active">
+
+    <!-- Статус-бар сверху, как в One UI -->
+    <div class="status-bar">
+      <span id="status-time">00:00</span>
+      <span class="status-icons">🔋 📶</span>
+    </div>
+
+    <!-- Виджет часов (крупные цифры + дата) -->
+    <div class="clock-widget">
+      <div id="widget-time" class="widget-time">00:00</div>
+      <div id="widget-date" class="widget-date">Понедельник, 1 января</div>
+    </div>
+
+    <!-- Сетка иконок приложений -->
+    <div id="app-grid" class="app-grid">
+      <!-- Иконки рендерятся через JS из массива APPS, см. script.js -->
+    </div>
+
+    <!-- Нижний док (закреплённые приложения) -->
+    <div id="dock" class="dock">
+      <!-- Заполняется скриптом -->
+    </div>
+  </div>
+
+  <!-- ===================== КОНТЕЙНЕР ОКОН ПРИЛОЖЕНИЙ ===================== -->
+  <!-- Каждое открытое приложение — это .app-window, добавляемое динамически -->
+  <div id="windows-container"></div>
+
+  <!-- ===================== ШАБЛОН ОКНА (скрыт, клонируется в JS) ===================== -->
+  <template id="window-template">
+    <div class="app-window">
+      <div class="window-titlebar">
+        <span class="window-title">Название</span>
+        <button class="window-close" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="window-body"></div>
+    </div>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
