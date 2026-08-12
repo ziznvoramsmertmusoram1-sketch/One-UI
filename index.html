@@ -8,6 +8,10 @@
   <!-- Подключаем официальный JS SDK Telegram Mini Apps — без него не будет доступа к tg.* методам -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
+  <!-- Манифест и цвет темы — без них PWABuilder не соберёт APK -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1259C3" />
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -94,15 +98,17 @@
 
   <!-- ===================== ОБЗОР ОТКРЫТЫХ ПРИЛОЖЕНИЙ (recents) ===================== -->
   <div id="recents-screen" class="recents-screen">
+    <div class="recents-header">
+      <span class="recents-title">Последние приложения</span>
+      <button id="recents-close" class="recents-close" aria-label="Закрыть">✕</button>
+    </div>
     <div class="recents-grid" id="recents-grid"></div>
     <p class="recents-empty" id="recents-empty">Нет открытых приложений</p>
   </div>
 
-  <!-- ===================== СИСТЕМНАЯ НАВИГАЦИЯ (как на Android/Samsung) ===================== -->
+  <!-- ===================== СИСТЕМНАЯ НАВИГАЦИЯ (как в iPhone — одна полоска вместо кнопок) ===================== -->
   <div class="nav-bar">
-    <button class="nav-btn" id="nav-recents" aria-label="Последние приложения">▭</button>
-    <button class="nav-btn nav-btn-home" id="nav-home" aria-label="Домой">●</button>
-    <button class="nav-btn" id="nav-back" aria-label="Назад">◁</button>
+    <button id="home-indicator" class="home-indicator" aria-label="Домой (долгий тап — последние приложения)"></button>
   </div>
 
   <!-- ===================== ШАБЛОН ОКНА (скрыт, клонируется в JS) ===================== -->
