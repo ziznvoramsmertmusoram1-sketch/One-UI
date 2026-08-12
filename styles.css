@@ -337,6 +337,120 @@ body.dark .app-icon .icon-glyph {
   font-size: 14px;
 }
 
+/* ============ ЭКРАН БЛОКИРОВКИ ============ */
+.lock-screen {
+  background: #000;
+  color: #fff;
+  align-items: center;
+  z-index: 100; /* поверх абсолютно всего, пока не разблокирован */
+}
+.lock-content {
+  margin: auto;
+  text-align: center;
+}
+.lock-time {
+  font-size: 88px;
+  font-weight: 200;
+  letter-spacing: -2px;
+}
+.lock-date {
+  font-size: 16px;
+  opacity: 0.85;
+  margin-top: 6px;
+}
+.lock-notifications {
+  margin-top: 24px;
+}
+.lock-unlock {
+  position: absolute;
+  left: 0; right: 0; bottom: 60px;
+  border: none;
+  background: none;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.85;
+  animation: lock-bounce 1.8s ease-in-out infinite; /* лёгкое покачивание стрелки-подсказки */
+}
+.lock-unlock-arrow { font-size: 18px; }
+.lock-unlock-text { font-size: 13px; }
+@keyframes lock-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* ============ ШТОРКА БЫСТРЫХ НАСТРОЕК ============ */
+.status-bar {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.quick-panel {
+  max-height: 0; /* спрятана по умолчанию, раскрывается через JS-класс .open */
+  overflow: hidden;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 0 0 var(--oneui-radius-lg) var(--oneui-radius-lg);
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 16px;
+}
+.quick-panel.open {
+  max-height: 220px;
+  padding: 14px 16px;
+}
+.quick-toggles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.quick-toggle {
+  border: none;
+  border-radius: 16px;
+  background: var(--oneui-bg);
+  padding: 12px 0;
+  font-size: 20px;
+  color: var(--oneui-text-sub);
+}
+.quick-toggle.active {
+  background: var(--oneui-accent);
+  color: #fff;
+}
+.quick-brightness {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.quick-brightness input[type="range"] {
+  flex: 1;
+  accent-color: var(--oneui-accent);
+}
+
+/* ============ ПОИСКОВАЯ СТРОКА НА РАБОЧЕМ СТОЛЕ ============ */
+.desktop-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 10px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--oneui-text-sub);
+  font-size: 13px;
+  box-shadow: var(--oneui-shadow);
+}
+body.dark .desktop-search {
+  background: rgba(28,29,33,0.75);
+}
+
 /* ============ МАГАЗИН — ВИЗУАЛЬНЫЙ СТИЛЬ GOOGLE PLAY ============ */
 
 /* Строка поиска сверху, как в Play Маркете */
