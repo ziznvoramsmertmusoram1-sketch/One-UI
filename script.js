@@ -88,6 +88,38 @@ const APPS = [
 const DEFAULT_PREINSTALLED_APPS = ["calc", "weather"];
 
 // ============================================================
+//  ИКОНКИ ПРИЛОЖЕНИЙ (Tabler Icons, MIT-лицензия — можно свободно использовать)
+// ============================================================
+// CDN с открытыми SVG-иконками вместо эмодзи — выглядит гораздо аккуратнее.
+// Полный список названий иконок: https://tabler.io/icons
+const ICON_CDN = "https://cdn.jsdelivr.net/npm/@tabler/icons@2.47.0/icons/outline/";
+
+// id приложения → имя файла иконки на CDN (без .svg)
+const APP_ICON_SLUGS = {
+  settings: "settings", store: "shopping-cart", chrome: "world", notes: "notes",
+  about: "info-circle", myfiles: "folder", google: "search", device: "device-mobile",
+  phone: "phone", messages: "message", camera: "camera", gallery: "photo",
+  contacts: "user", calendar: "calendar-event", spotify: "headphones", ytmusic: "player-play",
+  facebook: "brand-facebook", gemini: "sparkles", gplay: "brand-google-play",
+  calc: "calculator", weather: "cloud", flashlight: "bulb", compass: "compass",
+  converter: "ruler-2", scanner: "scan", recorder: "microphone", qr: "qrcode",
+  todo: "checklist", cloud: "cloud-computing", mail: "mail", office: "briefcase",
+  translator: "language", chat: "message-circle", video: "video", social: "news",
+  music: "music", "video-player": "movie", games: "device-gamepad-2", podcast: "headphones",
+  radio: "radio", health: "heart", fitness: "run", sleep: "moon",
+  editor: "palette", "camera-pro": "aperture",
+};
+
+// Возвращает готовый HTML для иконки: SVG с CDN, если он есть в карте, иначе эмодзи-заглушка
+function iconMarkup(app) {
+  const slug = APP_ICON_SLUGS[app.id];
+  if (slug) {
+    return `<img src="${ICON_CDN}${slug}.svg" alt="" style="width:26px;height:26px;" />`;
+  }
+  return app.icon; // запасной вариант — эмодзи, если для этого id иконки ещё нет в карте
+}
+
+// ============================================================
 //  ХРАНИЛИЩЕ НАСТРОЕК (localStorage — простая "сохранка" на клиенте)
 // ============================================================
 const STORAGE_KEY = "oneui_os_state_v1";
@@ -180,7 +212,7 @@ function iconButton(app) {
   const btn = document.createElement("button");
   btn.className = "app-icon";
   btn.innerHTML = `
-    <span class="icon-glyph">${app.icon}</span>
+    <span class="icon-glyph">${iconMarkup(app)}</span>
     <span class="icon-label">${app.name}</span>
   `;
   btn.addEventListener("click", () => openWindow(app.id));
@@ -293,6 +325,14 @@ function openWindow(appId) {
   // сообщаем Telegram лёгкой тактильной отдачей, что произошло действие
   tg.HapticFeedback.impactOccurred("light");
 
+  const container = document.getElementById("windows-container");
+
+  // подложка позади окна — своя для каждого открытого окна, чтобы уходила вместе с ним при закрытии
+  const backdrop = document.createElement("div");
+  backdrop.className = "window-backdrop";
+  container.appendChild(backdrop);
+  requestAnimationFrame(() => backdrop.classList.add("visible")); // в следующий кадр — чтобы transition сработал
+
   const template = document.getElementById("window-template");
   const node = template.content.firstElementChild.cloneNode(true);
 
@@ -303,25 +343,35 @@ function openWindow(appId) {
   const body = node.querySelector(".window-body");
   app.render(body); // каждое приложение само наполняет своё окно содержимым
 
-  document.getElementById("windows-container").appendChild(node);
+  node._backdrop = backdrop; // запоминаем связку окно↔подложка, чтобы убрать обе разом при закрытии
+  container.appendChild(node);
 }
 
 function closeWindow(node) {
-  node.style.animation = "none"; // убираем анимацию открытия перед закрытием
-  node.remove();
+  // проигрываем анимацию закрытия (scale-down + fade) и только ПОСЛЕ неё убираем элемент из DOM —
+  // без этого получится не анимация, а мгновенное исчезновение
+  node.classList.add("closing");
+  node._backdrop?.classList.remove("visible");
+
+  const cleanup = () => {
+    node.remove();
+    node._backdrop?.remove();
+  };
+  node.addEventListener("animationend", cleanup, { once: true });
+  setTimeout(cleanup, 350); // подстраховка на случай, если animationend почему-то не сработает
 }
 
 // ============================================================
 //  СИСТЕМНАЯ НАВИГАЦИЯ: ДОМОЙ / НАЗАД / ПОСЛЕДНИЕ (recents)
 // ============================================================
 function getOpenWindows() {
-  return Array.from(document.querySelectorAll("#windows-container .app-window"));
+  return Array.from(document.querySelectorAll("#windows-container .app-window:not(.closing)"));
 }
 
 function goHome() {
-  // кнопка "Домой" — закрывает все окна и прячет обзор последних приложений, как на телефоне
+  // кнопка "Домой" — закрывает все окна (с той же анимацией) и прячет обзор последних приложений
   closeRecents();
-  getOpenWindows().forEach((w) => w.remove());
+  getOpenWindows().forEach((w) => closeWindow(w));
 }
 
 function goBack() {
@@ -353,7 +403,7 @@ function renderRecents() {
     card.className = "recents-card";
     card.innerHTML = `
       <button class="recents-card-close">✕</button>
-      <span class="icon-glyph">${app.icon}</span>
+      <span class="icon-glyph">${iconMarkup(app)}</span>
       <span>${app.name}</span>
     `;
 
@@ -383,12 +433,32 @@ function closeRecents() {
 }
 
 function setupNavBar() {
-  document.getElementById("nav-home").addEventListener("click", goHome);
-  document.getElementById("nav-back").addEventListener("click", goBack);
-  document.getElementById("nav-recents").addEventListener("click", () => {
-    const recents = document.getElementById("recents-screen");
-    recents.classList.contains("active") ? closeRecents() : openRecents();
+  const indicator = document.getElementById("home-indicator");
+  document.getElementById("recents-close").addEventListener("click", closeRecents);
+
+  let pressTimer = null;
+  let longPressFired = false;
+
+  indicator.addEventListener("touchstart", (e) => {
+    e.preventDefault(); // не даём странице скроллиться/выделяться при долгом тапе
+    longPressFired = false;
+    pressTimer = setTimeout(() => {
+      longPressFired = true;
+      tg.HapticFeedback.impactOccurred("medium");
+      openRecents(); // долгий тап по полоске — как свайп-вверх-и-пауза на iPhone, открывает обзор приложений
+    }, 450);
+  }, { passive: false });
+
+  indicator.addEventListener("touchend", () => {
+    clearTimeout(pressTimer);
+    if (!longPressFired) {
+      tg.HapticFeedback.impactOccurred("light");
+      goHome(); // короткий тап — просто домой
+    }
   });
+
+  // на десктопе (для тестов в обычном браузере без touch) — обычный клик тоже уводит домой
+  indicator.addEventListener("click", () => { if (!longPressFired) goHome(); });
 }
 
 // ============================================================
@@ -484,7 +554,7 @@ const STORE_CATALOG = [
   shopApp("qr", "QR-сканер", "🔳", "Инструменты", 4.4, "4.2 МБ"),
 
   // ---- Продуктивность ----
-  shopApp("calendar", "Календарь", "📅", "Продуктивность", 4.5, "9 МБ"),
+  shopApp("cal-app", "Календарь Pro", "📅", "Продуктивность", 4.5, "9 МБ"),
   shopApp("todo", "Задачи", "✅", "Продуктивность", 4.6, "6 МБ"),
   shopApp("cloud", "Облако", "☁️", "Продуктивность", 4.3, "15 МБ"),
   shopApp("mail", "Почта", "📧", "Продуктивность", 4.2, "22 МБ"),
@@ -547,7 +617,7 @@ function renderStoreApp(container) {
       const row = document.createElement("div");
       row.className = "store-item";
       row.innerHTML = `
-        <div class="icon-glyph">${item.icon}</div>
+        <div class="icon-glyph">${iconMarkup(item)}</div>
         <div class="store-item-info">
           <div class="store-item-title">${item.name}</div>
           <div class="store-item-meta">${starRating(item.rating)} · ${item.votes} отзывов · ${item.size}</div>
@@ -1051,3 +1121,10 @@ setupQuickPanel();
 setupDesktopSearch();
 tickLockClock();
 setInterval(tickLockClock, 1000 * 30);
+
+// Регистрируем service worker — без него сайт не пройдёт проверку PWABuilder на "устанавливаемость"
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js").catch(() => {
+    // если запуск не через https (например, локальный файл без сервера) — просто игнорируем ошибку
+  });
+}
