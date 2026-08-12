@@ -44,6 +44,10 @@ const APPS = [
   },
 ];
 
+// Приложения из магазина, которые уже стоят "из коробки" при первом запуске —
+// как бывает, когда покупаешь новый телефон и часть софта Samsung уже установлена.
+const DEFAULT_PREINSTALLED_APPS = ["calc", "weather"];
+
 // ============================================================
 //  ХРАНИЛИЩЕ НАСТРОЕК (localStorage — простая "сохранка" на клиенте)
 // ============================================================
@@ -54,10 +58,12 @@ function loadState() {
   if (raw) {
     try { return JSON.parse(raw); } catch (e) { /* повреждённые данные — игнорируем */ }
   }
-  // состояние по умолчанию, если сохранки ещё нет
+  // состояние по умолчанию, если сохранки ещё нет — как при первой настройке нового Samsung,
+  // часть приложений из магазина уже "предустановлена" из коробки
   return {
     darkMode: false,
-    installedApps: [], // сюда попадают id приложений, "установленных" из магазина
+    installedApps: [...DEFAULT_PREINSTALLED_APPS],
+    currentPage: 0,
   };
 }
 
@@ -88,8 +94,10 @@ tickClock();
 setInterval(tickClock, 1000 * 30); // обновляем раз в 30 секунд — часам точность до минуты не нужна чаще
 
 // ============================================================
-//  РЕНДЕР СЕТКИ ИКОНОК И ДОКА
+//  РЕНДЕР СТРАНИЦ РАБОЧЕГО СТОЛА, ТОЧЕК И ДОКА
 // ============================================================
+const ICONS_PER_PAGE = 8; // 2 ряда по 4 иконки — как обычно помещается на один экран Samsung
+
 function iconButton(app) {
   const btn = document.createElement("button");
   btn.className = "app-icon";
@@ -102,22 +110,95 @@ function iconButton(app) {
 }
 
 function renderDesktop() {
-  const grid = document.getElementById("app-grid");
+  const track = document.getElementById("pages-track");
+  const dots = document.getElementById("page-dots");
   const dock = document.getElementById("dock");
-  grid.innerHTML = "";
+  track.innerHTML = "";
+  dots.innerHTML = "";
   dock.innerHTML = "";
 
+  // Собираем полный список иконок для рабочего стола (без тех, что закреплены в доке)
+  const desktopApps = [];
   APPS.forEach((app) => {
-    // приложения из категории "store" считаются установленными только если пользователь их поставил,
-    // но встроенные системные (settings/store/notes/about) видны всегда
-    (app.inDock ? dock : grid).appendChild(iconButton(app));
+    if (app.inDock) {
+      dock.appendChild(iconButton(app));
+    } else {
+      desktopApps.push(app);
+    }
   });
-
-  // Дополнительно рисуем иконки приложений, "установленных" из магазина
+  // Плюс приложения, "установленные" из магазина
   state.installedApps.forEach((appId) => {
     const shopApp = STORE_CATALOG.find((a) => a.id === appId);
-    if (shopApp) grid.appendChild(iconButton(shopApp));
+    if (shopApp) desktopApps.push(shopApp);
   });
+
+  // Разбиваем на страницы по ICONS_PER_PAGE штук — как реальные экраны Samsung
+  const pageCount = Math.max(1, Math.ceil(desktopApps.length / ICONS_PER_PAGE));
+  for (let p = 0; p < pageCount; p++) {
+    const page = document.createElement("div");
+    page.className = "app-grid";
+    desktopApps.slice(p * ICONS_PER_PAGE, (p + 1) * ICONS_PER_PAGE).forEach((app) => {
+      page.appendChild(iconButton(app));
+    });
+    track.appendChild(page);
+
+    const dot = document.createElement("span");
+    dot.className = "page-dot";
+    dots.appendChild(dot);
+  }
+
+  // Если сохранённая страница больше не существует (удалили приложения) — откатываемся на последнюю
+  if (state.currentPage >= pageCount) state.currentPage = pageCount - 1;
+  goToPage(state.currentPage, false);
+}
+
+function goToPage(index, animate = true) {
+  const track = document.getElementById("pages-track");
+  const pageCount = track.children.length;
+  index = Math.max(0, Math.min(index, pageCount - 1));
+
+  track.style.transition = animate ? "" : "none"; // отключаем анимацию при первой отрисовке
+  track.style.transform = `translateX(-${index * 100}%)`;
+
+  document.querySelectorAll(".page-dot").forEach((dot, i) => {
+    dot.classList.toggle("active", i === index);
+  });
+
+  state.currentPage = index;
+  saveState();
+}
+
+// ---- Свайп влево/вправо между страницами, как на самом Samsung ----
+function setupSwipeGestures() {
+  const viewport = document.getElementById("pages-viewport");
+  let startX = 0;
+  let startY = 0;
+  let dragging = false;
+
+  viewport.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dragging = true;
+  }, { passive: true });
+
+  viewport.addEventListener("touchend", (e) => {
+    if (!dragging) return;
+    dragging = false;
+
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+
+    // игнорируем в основном вертикальные жесты (скролл) — свайп страницы должен быть горизонтальным
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+
+    tg.HapticFeedback.impactOccurred("light"); // тактильный отклик, как при смене экрана на телефоне
+
+    if (dx < 0) {
+      goToPage(state.currentPage + 1); // свайп влево — следующая страница
+    } else {
+      goToPage(state.currentPage - 1); // свайп вправо — предыдущая страница
+    }
+  }, { passive: true });
 }
 
 // ============================================================
@@ -150,6 +231,86 @@ function openWindow(appId) {
 function closeWindow(node) {
   node.style.animation = "none"; // убираем анимацию открытия перед закрытием
   node.remove();
+}
+
+// ============================================================
+//  СИСТЕМНАЯ НАВИГАЦИЯ: ДОМОЙ / НАЗАД / ПОСЛЕДНИЕ (recents)
+// ============================================================
+function getOpenWindows() {
+  return Array.from(document.querySelectorAll("#windows-container .app-window"));
+}
+
+function goHome() {
+  // кнопка "Домой" — закрывает все окна и прячет обзор последних приложений, как на телефоне
+  closeRecents();
+  getOpenWindows().forEach((w) => w.remove());
+}
+
+function goBack() {
+  // кнопка "Назад" — сначала прячет recents, если он открыт, иначе закрывает верхнее окно
+  const recents = document.getElementById("recents-screen");
+  if (recents.classList.contains("active")) {
+    closeRecents();
+    return;
+  }
+  const windows = getOpenWindows();
+  if (windows.length > 0) {
+    closeWindow(windows[windows.length - 1]); // закрываем последнее открытое (самое верхнее) окно
+  }
+}
+
+function renderRecents() {
+  const grid = document.getElementById("recents-grid");
+  const empty = document.getElementById("recents-empty");
+  grid.innerHTML = "";
+
+  const windows = getOpenWindows();
+  empty.style.display = windows.length ? "none" : "block";
+
+  windows.forEach((win) => {
+    const app = findAppById(win.dataset.appId);
+    if (!app) return;
+
+    const card = document.createElement("div");
+    card.className = "recents-card";
+    card.innerHTML = `
+      <button class="recents-card-close">✕</button>
+      <span class="icon-glyph">${app.icon}</span>
+      <span>${app.name}</span>
+    `;
+
+    // тап по карточке — открыть это приложение и закрыть обзор
+    card.addEventListener("click", () => {
+      closeRecents();
+      win.scrollIntoView?.();
+    });
+    // отдельная кнопка "✕" — закрыть именно это приложение, не открывая его
+    card.querySelector(".recents-card-close").addEventListener("click", (e) => {
+      e.stopPropagation();
+      win.remove();
+      renderRecents(); // перерисовываем список после закрытия карточки
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+function openRecents() {
+  renderRecents();
+  document.getElementById("recents-screen").classList.add("active");
+}
+
+function closeRecents() {
+  document.getElementById("recents-screen").classList.remove("active");
+}
+
+function setupNavBar() {
+  document.getElementById("nav-home").addEventListener("click", goHome);
+  document.getElementById("nav-back").addEventListener("click", goBack);
+  document.getElementById("nav-recents").addEventListener("click", () => {
+    const recents = document.getElementById("recents-screen");
+    recents.classList.contains("active") ? closeRecents() : openRecents();
+  });
 }
 
 // ============================================================
@@ -286,3 +447,5 @@ function renderAboutApp(container) {
 // ============================================================
 applyTheme();
 renderDesktop();
+setupSwipeGestures();
+setupNavBar();
