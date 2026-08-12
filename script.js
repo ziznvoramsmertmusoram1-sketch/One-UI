@@ -70,6 +70,17 @@ const APPS = [
     inDock: false,
     render: renderDeviceInfoApp,
   },
+  { id: "phone", name: "Телефон", icon: "📞", inDock: true, render: renderPhoneApp },
+  { id: "messages", name: "Сообщения", icon: "💬", inDock: false, render: renderMessagesApp },
+  { id: "camera", name: "Камера", icon: "📷", inDock: false, render: renderCameraApp },
+  { id: "gallery", name: "Галерея", icon: "🌸", inDock: false, render: renderGalleryApp },
+  { id: "contacts", name: "Контакты", icon: "👤", inDock: false, render: renderContactsApp },
+  { id: "calendar", name: "Календарь", icon: "📅", inDock: false, render: renderCalendarApp },
+  { id: "spotify", name: "Spotify", icon: "🎧", inDock: false, render: (c) => renderExternalApp(c, "Spotify", "https://open.spotify.com") },
+  { id: "ytmusic", name: "YT Music", icon: "▶️", inDock: false, render: (c) => renderExternalApp(c, "YT Music", "https://music.youtube.com") },
+  { id: "facebook", name: "Facebook", icon: "📘", inDock: false, render: (c) => renderExternalApp(c, "Facebook", "https://facebook.com") },
+  { id: "gemini", name: "Gemini", icon: "✨", inDock: false, render: (c) => renderExternalApp(c, "Gemini", "https://gemini.google.com") },
+  { id: "gplay", name: "Google Play", icon: "▶️", inDock: false, render: (c) => renderExternalApp(c, "Google Play", "https://play.google.com") },
 ];
 
 // Приложения из магазина, которые уже стоят "из коробки" при первом запуске —
@@ -560,9 +571,63 @@ function renderStoreApp(container) {
   });
 }
 
-// ---- Пример простого установленного приложения: калькулятор ----
+// ---- Настоящий рабочий калькулятор (не заглушка) ----
 function renderCalcApp(container) {
-  container.innerHTML = `<p>Здесь будет калькулятор. Замените на свою вёрстку/логику.</p>`;
+  let expr = ""; // строка текущего выражения, например "12+7"
+
+  container.innerHTML = `
+    <div id="calc-display" style="background:var(--oneui-bg);border-radius:16px;padding:20px;
+      text-align:right;font-size:32px;font-weight:300;margin-bottom:12px;min-height:44px;word-break:break-all;">0</div>
+    <div id="calc-keys" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+  `;
+
+  const display = container.querySelector("#calc-display");
+  const keys = container.querySelector("#calc-keys");
+
+  // Раскладка клавиш калькулятора: значение и что при нажатии делать
+  const buttons = [
+    "C", "⌫", "%", "÷",
+    "7", "8", "9", "×",
+    "4", "5", "6", "−",
+    "1", "2", "3", "+",
+    "0", ".", "=",
+  ];
+
+  buttons.forEach((label) => {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    // "0" делаем на всю ширину двух ячеек, остальное — обычные квадратные кнопки
+    btn.style.cssText = `
+      padding:16px 0; border:none; border-radius:14px; font-size:18px; font-weight:600;
+      background:${"C⌫%÷×−+=".includes(label) ? "var(--oneui-accent)" : "var(--oneui-card)"};
+      color:${"C⌫%÷×−+=".includes(label) ? "#fff" : "var(--oneui-text-main)"};
+      box-shadow: var(--oneui-shadow);
+      ${label === "0" ? "grid-column: span 2;" : ""}
+    `;
+
+    btn.addEventListener("click", () => {
+      if (label === "C") {
+        expr = ""; // сброс
+      } else if (label === "⌫") {
+        expr = expr.slice(0, -1); // стереть последний символ
+      } else if (label === "=") {
+        try {
+          // переводим удобные для глаза символы в JS-операторы перед вычислением
+          const jsExpr = expr.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-").replace(/%/g, "/100");
+          // eslint-disable-next-line no-new-func — безопасно: строка состоит только из цифр/операторов, набранных кнопками
+          const result = Function(`"use strict"; return (${jsExpr})`)();
+          expr = String(Number.isFinite(result) ? +result.toFixed(8) : "Ошибка");
+        } catch (e) {
+          expr = "Ошибка";
+        }
+      } else {
+        expr += label; // цифра или знак операции — просто дописываем
+      }
+      display.textContent = expr || "0";
+    });
+
+    keys.appendChild(btn);
+  });
 }
 
 // ---- Пример: заглушка приложения "Погода" ----
@@ -685,6 +750,209 @@ function renderBrowserApp(container, prefillUrl) {
 
     tg.openLink(url); // именно этот метод SDK открывает внешние ссылки из Mini App
   });
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: ТЕЛЕФОН (реальный звонок через системный диалер)
+// ============================================================
+function renderPhoneApp(container) {
+  container.innerHTML = `
+    <div id="phone-display" style="background:var(--oneui-bg);border-radius:16px;padding:18px;
+      text-align:right;font-size:26px;margin-bottom:12px;min-height:36px;">Введите номер</div>
+    <div id="phone-keys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
+    <button id="phone-call" style="width:100%;border:none;background:#2E9E5B;color:#fff;
+      padding:14px;border-radius:999px;font-size:15px;font-weight:700;">📞 Позвонить</button>
+  `;
+  let number = "";
+  const display = container.querySelector("#phone-display");
+  const keys = container.querySelector("#phone-keys");
+
+  "123456789*0#".split("").forEach((d) => {
+    const btn = document.createElement("button");
+    btn.textContent = d;
+    btn.style.cssText = "padding:16px 0;border:none;border-radius:14px;font-size:20px;background:var(--oneui-card);box-shadow:var(--oneui-shadow);color:var(--oneui-text-main);";
+    btn.addEventListener("click", () => {
+      number += d;
+      display.textContent = number;
+    });
+    keys.appendChild(btn);
+  });
+
+  // tel: — открывает НАСТОЯЩИЙ звонилку телефона с этим номером, это реальная функция, а не заглушка
+  container.querySelector("#phone-call").addEventListener("click", () => {
+    if (!number) return;
+    tg.openLink?.(`tel:${number}`) || (window.location.href = `tel:${number}`);
+  });
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: СООБЩЕНИЯ (реальная SMS через системное приложение)
+// ============================================================
+function renderMessagesApp(container) {
+  container.innerHTML = `
+    <input id="sms-to" type="text" placeholder="Номер получателя" style="width:100%;border:none;
+      background:var(--oneui-bg);border-radius:12px;padding:12px;margin-bottom:8px;font-size:14px;color:var(--oneui-text-main);" />
+    <textarea id="sms-text" placeholder="Текст сообщения" style="width:100%;height:100px;border:none;
+      background:var(--oneui-bg);border-radius:12px;padding:12px;font-size:14px;color:var(--oneui-text-main);"></textarea>
+    <button id="sms-send" style="width:100%;margin-top:10px;border:none;background:var(--oneui-accent);
+      color:#fff;padding:14px;border-radius:999px;font-weight:700;">Открыть в Сообщениях</button>
+  `;
+  container.querySelector("#sms-send").addEventListener("click", () => {
+    const to = container.querySelector("#sms-to").value.trim();
+    const body = encodeURIComponent(container.querySelector("#sms-text").value);
+    // sms: — тоже реальная ссылка, открывает настоящее приложение сообщений с заполненным текстом
+    window.location.href = `sms:${to}?body=${body}`;
+  });
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: КАМЕРА (настоящий доступ к камере устройства)
+// ============================================================
+function renderCameraApp(container) {
+  container.innerHTML = `
+    <video id="camera-preview" autoplay playsinline style="width:100%;border-radius:16px;background:#000;"></video>
+    <p id="camera-error" style="color:#E5484D;font-size:13px;margin-top:8px;"></p>
+    <button id="camera-shot" style="width:100%;margin-top:12px;border:none;background:var(--oneui-accent);
+      color:#fff;padding:14px;border-radius:999px;font-weight:700;">📸 Снять фото</button>
+  `;
+  const video = container.querySelector("#camera-preview");
+  const errorBox = container.querySelector("#camera-error");
+
+  // Запрашиваем доступ к настоящей камере телефона — это реальный API браузера, не имитация
+  navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment" } })
+    .then((stream) => { video.srcObject = stream; })
+    .catch(() => {
+      errorBox.textContent = "Нет доступа к камере (разрешите доступ в браузере) или камера недоступна в этом окружении.";
+    });
+
+  container.querySelector("#camera-shot").addEventListener("click", () => {
+    if (!video.srcObject) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const photoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+    // сохраняем снимок в "Галерею" через localStorage — реально сохраняется между сессиями
+    const gallery = JSON.parse(localStorage.getItem("oneui_gallery") || "[]");
+    gallery.unshift(photoDataUrl);
+    localStorage.setItem("oneui_gallery", JSON.stringify(gallery.slice(0, 30))); // храним последние 30 фото
+    tg.HapticFeedback.notificationOccurred("success");
+  });
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: ГАЛЕРЕЯ (показывает то, что реально снято Камерой)
+// ============================================================
+function renderGalleryApp(container) {
+  const photos = JSON.parse(localStorage.getItem("oneui_gallery") || "[]");
+  if (!photos.length) {
+    container.innerHTML = `<p style="color:var(--oneui-text-sub);font-size:14px;">
+      Пока нет фото. Снимите что-нибудь в приложении «Камера» — оно появится здесь.</p>`;
+    return;
+  }
+  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>`;
+  const grid = container.firstElementChild;
+  photos.forEach((src) => {
+    const img = document.createElement("img");
+    img.src = src;
+    img.style.cssText = "width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;";
+    grid.appendChild(img);
+  });
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: КОНТАКТЫ (реальное сохранение своих контактов)
+// ============================================================
+function renderContactsApp(container) {
+  const load = () => JSON.parse(localStorage.getItem("oneui_contacts") || "[]");
+  const save = (list) => localStorage.setItem("oneui_contacts", JSON.stringify(list));
+
+  function draw() {
+    const contacts = load();
+    container.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="ct-name" placeholder="Имя" style="flex:1;border:none;background:var(--oneui-bg);
+          border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);" />
+        <input id="ct-phone" placeholder="Номер" style="flex:1;border:none;background:var(--oneui-bg);
+          border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);" />
+        <button id="ct-add" style="border:none;background:var(--oneui-accent);color:#fff;
+          width:40px;border-radius:12px;font-size:18px;">+</button>
+      </div>
+      <div id="ct-list"></div>
+    `;
+    const list = container.querySelector("#ct-list");
+    contacts.forEach((c, i) => {
+      const row = document.createElement("div");
+      row.className = "folder-row";
+      row.innerHTML = `
+        <div class="icon-glyph">👤</div>
+        <div style="flex:1;"><div class="folder-row-title">${c.name}</div><div class="folder-row-meta">${c.phone}</div></div>
+        <button data-i="${i}" style="border:none;background:none;color:var(--oneui-text-sub);font-size:16px;">✕</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => {
+        const updated = load(); updated.splice(i, 1); save(updated); draw();
+      });
+      list.appendChild(row);
+    });
+
+    container.querySelector("#ct-add").addEventListener("click", () => {
+      const name = container.querySelector("#ct-name").value.trim();
+      const phone = container.querySelector("#ct-phone").value.trim();
+      if (!name || !phone) return;
+      const updated = load(); updated.push({ name, phone }); save(updated); draw();
+    });
+  }
+
+  draw();
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: КАЛЕНДАРЬ (настоящий текущий месяц)
+// ============================================================
+function renderCalendarApp(container) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // в JS воскресенье = 0, а нам нужно, чтобы неделя начиналась с понедельника
+  const startOffset = (firstDay.getDay() + 6) % 7;
+
+  let cells = "";
+  for (let i = 0; i < startOffset; i++) cells += `<div></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = d === now.getDate();
+    cells += `<div style="text-align:center;padding:8px 0;border-radius:10px;font-size:13px;
+      ${isToday ? "background:var(--oneui-accent);color:#fff;font-weight:700;" : "color:var(--oneui-text-main);"}">${d}</div>`;
+  }
+
+  container.innerHTML = `
+    <p style="font-weight:700;font-size:16px;margin-bottom:12px;text-transform:capitalize;">
+      ${now.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:11px;color:var(--oneui-text-sub);margin-bottom:6px;">
+      ${["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map((d) => `<div style="text-align:center;">${d}</div>`).join("")}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">${cells}</div>
+  `;
+}
+
+// ============================================================
+//  ЛАУНЧЕР ВНЕШНИХ СЕРВИСОВ (Spotify / YT Music / Facebook / Gemini / Google Play)
+// ============================================================
+// Настоящие эти сервисы работают только под своим аккаунтом — встроить их внутрь чужого
+// мини-приложения технически нельзя (X-Frame-Options), поэтому кнопка открывает
+// настоящий сайт/приложение через tg.openLink(), как и Chrome/Google выше.
+function renderExternalApp(container, name, url) {
+  container.innerHTML = `
+    <p style="font-size:14px;color:var(--oneui-text-sub);margin-bottom:14px;">
+      ${name} откроется в отдельном окне — как настоящее приложение, установленное на телефоне.
+    </p>
+    <button id="ext-open" style="width:100%;border:none;background:var(--oneui-accent);color:#fff;
+      padding:14px;border-radius:999px;font-weight:700;">Открыть ${name}</button>
+  `;
+  container.querySelector("#ext-open").addEventListener("click", () => tg.openLink(url));
 }
 
 // ============================================================
