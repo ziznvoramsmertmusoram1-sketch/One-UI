@@ -133,6 +133,8 @@ const WALLPAPERS = [
 function applyWallpaper() {
   const wp = WALLPAPERS.find((w) => w.id === state.wallpaper) || WALLPAPERS[0];
   document.getElementById("wallpaper-layer").style.background = wp.css;
+  const lockWp = document.getElementById("lock-wallpaper");
+  if (lockWp) lockWp.style.background = wp.css; // те же обои и на экране блокировки, как на настоящем телефоне
 }
 
 // ============================================================
@@ -966,6 +968,77 @@ function renderAboutApp(container) {
 }
 
 // ============================================================
+//  ЭКРАН БЛОКИРОВКИ
+// ============================================================
+function setupLockScreen() {
+  const lock = document.getElementById("lock-screen");
+  const desktop = document.getElementById("desktop");
+
+  function unlock() {
+    lock.classList.remove("active");
+    desktop.classList.add("active");
+    tg.HapticFeedback.impactOccurred("medium");
+  }
+
+  document.getElementById("lock-unlock").addEventListener("click", unlock);
+
+  // свайп вверх по всему экрану блокировки тоже разблокирует, как на настоящем телефоне
+  let startY = 0;
+  lock.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });
+  lock.addEventListener("touchend", (e) => {
+    if (startY - e.changedTouches[0].clientY > 80) unlock();
+  }, { passive: true });
+}
+
+function tickLockClock() {
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const lockTime = document.getElementById("lock-time");
+  const lockDate = document.getElementById("lock-date");
+  if (lockTime) lockTime.textContent = timeStr;
+  if (lockDate) lockDate.textContent = `${WEEKDAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+}
+
+// ============================================================
+//  ШТОРКА БЫСТРЫХ НАСТРОЕК
+// ============================================================
+const QUICK_TOGGLES = [
+  { id: "wifi", icon: "📶", label: "Wi-Fi" },
+  { id: "bt", icon: "🔵", label: "Bluetooth" },
+  { id: "flash", icon: "🔦", label: "Фонарик" },
+  { id: "dnd", icon: "🌙", label: "Не беспокоить" },
+];
+
+function setupQuickPanel() {
+  const panel = document.getElementById("quick-panel");
+  const toggles = document.getElementById("quick-toggles");
+
+  QUICK_TOGGLES.forEach((t) => {
+    const btn = document.createElement("button");
+    btn.className = "quick-toggle";
+    btn.textContent = t.icon;
+    btn.title = t.label;
+    // визуальные переключатели-заглушки — подключите к реальным Web API (например, факел через camera track),
+    // когда будете реализовывать эти функции по-настоящему
+    btn.addEventListener("click", () => btn.classList.toggle("active"));
+    toggles.appendChild(btn);
+  });
+
+  document.getElementById("status-bar").addEventListener("click", () => {
+    panel.classList.toggle("open");
+  });
+}
+
+// ============================================================
+//  ПОИСК НА РАБОЧЕМ СТОЛЕ
+// ============================================================
+function setupDesktopSearch() {
+  document.getElementById("desktop-search").addEventListener("click", () => {
+    openWindow("google"); // используем уже готовое приложение Google/браузер
+  });
+}
+
+// ============================================================
 //  СТАРТ
 // ============================================================
 applyTheme();
@@ -973,3 +1046,8 @@ applyWallpaper();
 renderDesktop();
 setupSwipeGestures();
 setupNavBar();
+setupLockScreen();
+setupQuickPanel();
+setupDesktopSearch();
+tickLockClock();
+setInterval(tickLockClock, 1000 * 30);
