@@ -29,6 +29,13 @@ const APPS = [
     render: renderStoreApp,
   },
   {
+    id: "chrome",
+    name: "Chrome",
+    icon: "🌐",
+    inDock: true,
+    render: (c) => renderBrowserApp(c, "https://www.google.com"),
+  },
+  {
     id: "notes",
     name: "Заметки",
     icon: "📝",
@@ -41,6 +48,27 @@ const APPS = [
     icon: "ℹ️",
     inDock: false,
     render: renderAboutApp,
+  },
+  {
+    id: "myfiles",
+    name: "Мои файлы",
+    icon: "📁",
+    inDock: false,
+    render: renderMyFilesApp,
+  },
+  {
+    id: "google",
+    name: "Google",
+    icon: "🔍",
+    inDock: false,
+    render: (c) => renderBrowserApp(c, "https://www.google.com/search?q="),
+  },
+  {
+    id: "device",
+    name: "О телефоне",
+    icon: "📱",
+    inDock: false,
+    render: renderDeviceInfoApp,
   },
 ];
 
@@ -62,6 +90,8 @@ function loadState() {
   // часть приложений из магазина уже "предустановлена" из коробки
   return {
     darkMode: false,
+    themeMode: "day",  // "day" | "night" | "auto" — управляется в Настройках
+    wallpaper: "wp1",  // id текущих обоев, см. WALLPAPERS
     installedApps: [...DEFAULT_PREINSTALLED_APPS],
     currentPage: 0,
   };
@@ -72,6 +102,41 @@ function saveState() {
 }
 
 let state = loadState();
+
+// ============================================================
+//  ОБОИ РАБОЧЕГО СТОЛА
+// ============================================================
+// Каждые обои — CSS-градиент на весь экран (не внешние фото — не нужен хостинг картинок
+// и нет вопросов авторства). Хотите свои фото — замените css на url('ваша_картинка.jpg').
+const WALLPAPERS = [
+  { id: "wp1", name: "Океан",     css: "linear-gradient(160deg, #2E6BE6 0%, #4FC3F7 55%, #B3E5FC 100%)" },
+  { id: "wp2", name: "Закат",     css: "linear-gradient(160deg, #FF7E5F 0%, #FEB47B 55%, #FFD3A5 100%)" },
+  { id: "wp3", name: "Аврора",    css: "linear-gradient(160deg, #0F2027 0%, #2C5364 55%, #00C9A7 100%)" },
+  { id: "wp4", name: "Лаванда",   css: "linear-gradient(160deg, #654EA3 0%, #A084DC 55%, #EAAFC8 100%)" },
+  { id: "wp5", name: "Лес",       css: "linear-gradient(160deg, #134E5E 0%, #2E8B57 55%, #71B280 100%)" },
+  { id: "wp6", name: "Полночь",   css: "linear-gradient(160deg, #0F0F1A 0%, #23234A 55%, #3A3A7A 100%)" },
+  { id: "wp7", name: "Персик",    css: "linear-gradient(160deg, #FFAFBD 0%, #FFC3A0 100%)" },
+  { id: "wp8", name: "Минимал",   css: "linear-gradient(160deg, #E8EAF0 0%, #C9CEDB 100%)" },
+];
+
+function applyWallpaper() {
+  const wp = WALLPAPERS.find((w) => w.id === state.wallpaper) || WALLPAPERS[0];
+  document.getElementById("wallpaper-layer").style.background = wp.css;
+}
+
+// ============================================================
+//  ТЕМА: ДЕНЬ / НОЧЬ / АВТО
+// ============================================================
+function applyTheme() {
+  let isDark;
+  if (state.themeMode === "auto") {
+    const hour = new Date().getHours();
+    isDark = hour >= 20 || hour < 7; // с 20:00 до 7:00 — тёмное время суток
+  } else {
+    isDark = state.themeMode === "night";
+  }
+  document.body.classList.toggle("dark", isDark);
+}
 
 // ============================================================
 //  ЧАСЫ И ДАТА НА РАБОЧЕМ СТОЛЕ
@@ -318,10 +383,17 @@ function setupNavBar() {
 // ============================================================
 function renderSettingsApp(container) {
   container.innerHTML = `
-    <div class="settings-row">
-      <span>Тёмная тема</span>
-      <div class="switch ${state.darkMode ? "on" : ""}" id="toggle-dark"></div>
+    <p class="store-category">Тема</p>
+    <div class="theme-segment" id="theme-segment">
+      <button data-mode="day">☀️ День</button>
+      <button data-mode="night">🌙 Ночь</button>
+      <button data-mode="auto">🕒 Авто</button>
     </div>
+
+    <p class="store-category">Обои</p>
+    <div class="wallpaper-grid" id="wallpaper-grid"></div>
+
+    <p class="store-category">Об устройстве</p>
     <div class="settings-row">
       <span>Установлено приложений</span>
       <span>${state.installedApps.length}</span>
@@ -332,17 +404,37 @@ function renderSettingsApp(container) {
     </div>
   `;
 
-  container.querySelector("#toggle-dark").addEventListener("click", (e) => {
-    state.darkMode = !state.darkMode;
-    saveState();
-    applyTheme();
-    e.currentTarget.classList.toggle("on", state.darkMode);
+  // ---- переключатель темы ----
+  const segment = container.querySelector("#theme-segment");
+  segment.querySelectorAll("button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === state.themeMode);
+    btn.addEventListener("click", () => {
+      state.themeMode = btn.dataset.mode;
+      saveState();
+      applyTheme();
+      segment.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+    });
+  });
+
+  // ---- сетка обоев ----
+  const grid = container.querySelector("#wallpaper-grid");
+  WALLPAPERS.forEach((wp) => {
+    const thumb = document.createElement("button");
+    thumb.className = "wallpaper-thumb" + (wp.id === state.wallpaper ? " active" : "");
+    thumb.style.background = wp.css;
+    thumb.title = wp.name;
+    thumb.addEventListener("click", () => {
+      state.wallpaper = wp.id;
+      saveState();
+      applyWallpaper();
+      grid.querySelectorAll(".wallpaper-thumb").forEach((t) => t.classList.remove("active"));
+      thumb.classList.add("active");
+    });
+    grid.appendChild(thumb);
   });
 }
 
-function applyTheme() {
-  document.body.classList.toggle("dark", state.darkMode);
-}
+// Примечание: applyTheme() теперь определена выше — она также умеет учитывать "авто" режим.
 
 // ============================================================
 //  ПРИЛОЖЕНИЕ: МАГАЗИН
@@ -352,9 +444,61 @@ function applyTheme() {
 // Каждая запись — как карточка реального Google Play: рейтинг, число оценок, размер файла.
 // Реальные иконки/данные из настоящего Play Маркета получить нельзя — у Google нет публичного
 // API для стороннего каталога, поэтому здесь пример-заглушка в том же визуальном стиле.
+//
+// У большинства приложений ниже render — это renderPlaceholderApp (заглушка "скоро здесь будет функционал").
+// Замените поле render на свою функцию, когда будете подключать реальную логику —
+// сигнатура та же, что и у остальных: function(container) { ... }.
+function renderPlaceholderApp(container) {
+  container.innerHTML = `<p style="color:var(--oneui-text-sub);font-size:14px;">
+    Заглушка приложения. Подключите свою функцию рендера в script.js (см. поле "render" в STORE_CATALOG).
+  </p>`;
+}
+
+// Компактный конструктор записи каталога — чтобы не дублировать одинаковые поля вручную
+function shopApp(id, name, icon, category, rating, size, render) {
+  return { id, name, icon, category, desc: category, rating, votes: `${(1 + Math.random() * 40).toFixed(1)}К`, size, render: render || renderPlaceholderApp };
+}
+
 const STORE_CATALOG = [
-  { id: "calc", name: "Калькулятор", icon: "🧮", desc: "Инструменты", rating: 4.6, votes: "12К", size: "1.2 МБ", render: renderCalcApp },
-  { id: "weather", name: "Погода", icon: "☀️", desc: "Погода и время", rating: 4.4, votes: "8.7К", size: "3.4 МБ", render: renderWeatherApp },
+  // ---- Инструменты (с рабочей логикой-примером) ----
+  shopApp("calc", "Калькулятор", "🧮", "Инструменты", 4.6, "1.2 МБ", renderCalcApp),
+  shopApp("weather", "Погода", "☀️", "Инструменты", 4.4, "3.4 МБ", renderWeatherApp),
+  shopApp("flashlight", "Фонарик", "🔦", "Инструменты", 4.2, "0.8 МБ"),
+  shopApp("compass", "Компас", "🧭", "Инструменты", 4.0, "1.5 МБ"),
+  shopApp("converter", "Конвертер единиц", "📐", "Инструменты", 4.3, "2.1 МБ"),
+  shopApp("scanner", "Сканер документов", "📄", "Инструменты", 4.5, "12 МБ"),
+  shopApp("recorder", "Диктофон", "🎙️", "Инструменты", 4.1, "3.9 МБ"),
+  shopApp("qr", "QR-сканер", "🔳", "Инструменты", 4.4, "4.2 МБ"),
+
+  // ---- Продуктивность ----
+  shopApp("calendar", "Календарь", "📅", "Продуктивность", 4.5, "9 МБ"),
+  shopApp("todo", "Задачи", "✅", "Продуктивность", 4.6, "6 МБ"),
+  shopApp("cloud", "Облако", "☁️", "Продуктивность", 4.3, "15 МБ"),
+  shopApp("mail", "Почта", "📧", "Продуктивность", 4.2, "22 МБ"),
+  shopApp("office", "Офисный пакет", "📊", "Продуктивность", 4.4, "45 МБ"),
+  shopApp("translator", "Переводчик", "🌍", "Продуктивность", 4.5, "18 МБ"),
+
+  // ---- Соцсети и общение ----
+  shopApp("chat", "Мессенджер", "💬", "Общение", 4.3, "28 МБ"),
+  shopApp("video", "Видеозвонки", "📹", "Общение", 4.2, "31 МБ"),
+  shopApp("social", "Лента новостей", "📰", "Общение", 4.0, "26 МБ"),
+
+  // ---- Развлечения ----
+  shopApp("music", "Музыка", "🎵", "Развлечения", 4.6, "19 МБ"),
+  shopApp("video-player", "Видеоплеер", "🎬", "Развлечения", 4.4, "24 МБ"),
+  shopApp("games", "Игровой центр", "🎮", "Развлечения", 4.5, "40 МБ"),
+  shopApp("podcast", "Подкасты", "🎧", "Развлечения", 4.3, "14 МБ"),
+  shopApp("radio", "Радио", "📻", "Развлечения", 4.1, "8 МБ"),
+
+  // ---- Здоровье и стиль жизни ----
+  shopApp("health", "Здоровье", "❤️", "Здоровье", 4.4, "16 МБ"),
+  shopApp("fitness", "Фитнес-трекер", "🏃", "Здоровье", 4.3, "20 МБ"),
+  shopApp("sleep", "Сон", "😴", "Здоровье", 4.2, "9 МБ"),
+
+  // ---- Фото и графика ----
+  shopApp("gallery", "Галерея Плюс", "🖼️", "Фото", 4.5, "17 МБ"),
+  shopApp("editor", "Фоторедактор", "🎨", "Фото", 4.4, "33 МБ"),
+  shopApp("camera-pro", "Камера Pro", "📷", "Фото", 4.6, "27 МБ"),
 ];
 
 function starRating(rating) {
@@ -375,35 +519,44 @@ function renderStoreApp(container) {
 
   const list = container.querySelector("#store-list");
 
-  STORE_CATALOG.forEach((item) => {
-    const installed = state.installedApps.includes(item.id);
+  // Группируем каталог по полю category — так длинный список не превращается в стену карточек
+  const categories = [...new Set(STORE_CATALOG.map((a) => a.category))];
 
-    const row = document.createElement("div");
-    row.className = "store-item";
-    row.innerHTML = `
-      <div class="icon-glyph">${item.icon}</div>
-      <div class="store-item-info">
-        <div class="store-item-title">${item.name}</div>
-        <div class="store-item-desc">${item.desc}</div>
-        <div class="store-item-meta">${starRating(item.rating)} · ${item.votes} отзывов · ${item.size}</div>
-      </div>
-      <button class="btn-install ${installed ? "installed" : ""}">
-        ${installed ? "Открыть" : "Установить"}
-      </button>
-    `;
+  categories.forEach((category) => {
+    const heading = document.createElement("p");
+    heading.className = "store-category";
+    heading.textContent = category;
+    list.appendChild(heading);
 
-    row.querySelector(".btn-install").addEventListener("click", () => {
-      if (state.installedApps.includes(item.id)) {
-        openWindow(item.id); // уже установлено — просто открываем
-      } else {
-        state.installedApps.push(item.id); // "устанавливаем" — сохраняем id в state
-        saveState();
-        renderDesktop();     // обновляем сетку иконок на рабочем столе
-        renderStoreApp(container); // перерисовываем список магазина (кнопка станет "Открыть")
-      }
+    STORE_CATALOG.filter((a) => a.category === category).forEach((item) => {
+      const installed = state.installedApps.includes(item.id);
+
+      const row = document.createElement("div");
+      row.className = "store-item";
+      row.innerHTML = `
+        <div class="icon-glyph">${item.icon}</div>
+        <div class="store-item-info">
+          <div class="store-item-title">${item.name}</div>
+          <div class="store-item-meta">${starRating(item.rating)} · ${item.votes} отзывов · ${item.size}</div>
+        </div>
+        <button class="btn-install ${installed ? "installed" : ""}">
+          ${installed ? "Открыть" : "Установить"}
+        </button>
+      `;
+
+      row.querySelector(".btn-install").addEventListener("click", () => {
+        if (state.installedApps.includes(item.id)) {
+          openWindow(item.id); // уже установлено — просто открываем
+        } else {
+          state.installedApps.push(item.id); // "устанавливаем" — сохраняем id в state
+          saveState();
+          renderDesktop();     // обновляем сетку иконок на рабочем столе
+          renderStoreApp(container); // перерисовываем список магазина (кнопка станет "Открыть")
+        }
+      });
+
+      list.appendChild(row);
     });
-
-    list.appendChild(row);
   });
 }
 
@@ -433,6 +586,108 @@ function renderNotesApp(container) {
 }
 
 // ============================================================
+//  ПРИЛОЖЕНИЕ: О ТЕЛЕФОНЕ
+// ============================================================
+function renderDeviceInfoApp(container) {
+  // Реальные данные, доступные браузеру — без доступа к настоящему железу телефона,
+  // но это честная информация о самом устройстве/браузере, а не выдумка
+  const ua = navigator.userAgent;
+  const platform = navigator.userAgentData?.platform || navigator.platform || "неизвестно";
+  const lang = navigator.language || "неизвестно";
+  const screenRes = `${window.screen.width}×${window.screen.height} @${window.devicePixelRatio || 1}x`;
+  const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} ядер` : "неизвестно";
+  const memory = navigator.deviceMemory ? `${navigator.deviceMemory} ГБ` : "неизвестно";
+  const connection = navigator.connection?.effectiveType?.toUpperCase() || "неизвестно";
+  const user = tg.initDataUnsafe?.user;
+
+  container.innerHTML = `
+    <p class="store-category">Устройство</p>
+    <div class="info-row"><span>Платформа</span><span>${platform}</span></div>
+    <div class="info-row"><span>Разрешение экрана</span><span>${screenRes}</span></div>
+    <div class="info-row"><span>Процессор</span><span>${cores}</span></div>
+    <div class="info-row"><span>Память (приблизительно)</span><span>${memory}</span></div>
+    <div class="info-row"><span>Сеть</span><span>${connection}</span></div>
+    <div class="info-row"><span>Язык системы</span><span>${lang}</span></div>
+
+    <p class="store-category">Telegram</p>
+    <div class="info-row"><span>Пользователь</span><span>${user ? (user.first_name + (user.last_name ? " " + user.last_name : "")) : "Гость"}</span></div>
+    <div class="info-row"><span>Username</span><span>${user?.username ? "@" + user.username : "—"}</span></div>
+    <div class="info-row"><span>Версия Telegram WebApp</span><span>${tg.version || "неизвестно"}</span></div>
+    <div class="info-row"><span>Платформа Telegram</span><span>${tg.platform || "неизвестно"}</span></div>
+
+    <p class="store-category">Браузер</p>
+    <div class="info-row" style="display:block;">
+      <span style="display:block;margin-bottom:4px;">User-Agent</span>
+      <span style="display:block;text-align:left;font-weight:400;font-size:12px;word-break:break-all;color:var(--oneui-text-sub);">${ua}</span>
+    </div>
+  `;
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: МОИ ФАЙЛЫ
+// ============================================================
+function renderMyFilesApp(container) {
+  // Пример структуры "файлов" — замените на реальные данные с вашего бэкенда,
+  // когда будете подключать хранилище файлов пользователя
+  const folders = [
+    { icon: "📥", name: "Загрузки", meta: "12 файлов · 340 МБ" },
+    { icon: "🖼️", name: "Изображения", meta: "58 файлов · 1.1 ГБ" },
+    { icon: "🎵", name: "Музыка", meta: "24 файла · 210 МБ" },
+    { icon: "📄", name: "Документы", meta: "9 файлов · 40 МБ" },
+    { icon: "🎬", name: "Видео", meta: "6 файлов · 780 МБ" },
+    { icon: "🖌️", name: "Обои", meta: `${WALLPAPERS.length} файлов · 4 МБ` },
+  ];
+
+  container.innerHTML = "";
+  folders.forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "folder-row";
+    row.innerHTML = `
+      <div class="icon-glyph">${f.icon}</div>
+      <div>
+        <div class="folder-row-title">${f.name}</div>
+        <div class="folder-row-meta">${f.meta}</div>
+      </div>
+    `;
+    // тап пока просто заглушка — подключите открытие реального списка файлов на свой вкус
+    row.addEventListener("click", () => alert(`Открыть папку "${f.name}" — подключите свою логику`));
+    container.appendChild(row);
+  });
+}
+
+// ============================================================
+//  ПРИЛОЖЕНИЕ: МИНИ-БРАУЗЕР (используется для Chrome и Google)
+// ============================================================
+function renderBrowserApp(container, prefillUrl) {
+  // Встроить чужой сайт через <iframe> почти всегда не получится — большинство сайтов
+  // (включая сам Google) запрещают встраивание себя в чужие страницы (заголовок X-Frame-Options).
+  // Поэтому переход происходит через tg.openLink() — Telegram открывает системный браузер поверх мини-приложения.
+  container.innerHTML = `
+    <div class="browser-bar">
+      <input id="browser-url" type="text" value="${prefillUrl}" placeholder="Введите адрес или запрос" />
+      <button id="browser-go">Перейти</button>
+    </div>
+    <p class="browser-hint">
+      Большинство сайтов запрещают открываться внутри чужих страниц, поэтому ссылка откроется
+      в системном браузере поверх мини-приложения — это ограничение самих сайтов, а не бота.
+    </p>
+  `;
+
+  container.querySelector("#browser-go").addEventListener("click", () => {
+    let value = container.querySelector("#browser-url").value.trim();
+    if (!value) return;
+
+    // если это похоже на поисковый запрос, а не адрес сайта — оборачиваем в поиск Google
+    const looksLikeUrl = /^https?:\/\//i.test(value) || value.includes(".");
+    const url = looksLikeUrl
+      ? (value.startsWith("http") ? value : `https://${value}`)
+      : `https://www.google.com/search?q=${encodeURIComponent(value)}`;
+
+    tg.openLink(url); // именно этот метод SDK открывает внешние ссылки из Mini App
+  });
+}
+
+// ============================================================
 //  ПРИЛОЖЕНИЕ: О СИСТЕМЕ
 // ============================================================
 function renderAboutApp(container) {
@@ -446,6 +701,7 @@ function renderAboutApp(container) {
 //  СТАРТ
 // ============================================================
 applyTheme();
+applyWallpaper();
 renderDesktop();
 setupSwipeGestures();
 setupNavBar();
