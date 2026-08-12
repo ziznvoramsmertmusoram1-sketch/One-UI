@@ -60,14 +60,8 @@ html, body {
 .wallpaper-layer {
   position: absolute;
   inset: 0;
-  z-index: 0;
-  /* сам градиент подставляется через JS (inline style background) в зависимости от выбора в Настройках */
+  z-index: -1; /* гарантированно позади любого контента, включая непозиционированный (баг с прошлой версией) */
   transition: background 0.3s ease;
-}
-/* Все прямые дети #desktop, кроме обоев, должны быть выше них по слою */
-#desktop > *:not(.wallpaper-layer) {
-  position: relative;
-  z-index: 1;
 }
 /* Часы на цветных обоях лучше читаются с лёгкой тенью на тексте */
 .widget-time, .widget-date, .status-bar {
@@ -212,6 +206,19 @@ body.dark .app-icon .icon-glyph {
   z-index: 20; /* выше элементов рабочего стола (у них z-index:1) — иначе часы/док просвечивают поверх окна */
 }
 
+/* Тёмная размытая подложка позади открытого окна — глубина и фокус на контенте, как в iOS */
+.window-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.18);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.window-backdrop.visible { opacity: 1; }
+
 .app-window {
   position: absolute;
   inset: 6% 4%;
@@ -219,15 +226,27 @@ body.dark .app-icon .icon-glyph {
   flex-direction: column;
   background: var(--oneui-card);
   border-radius: var(--oneui-radius-lg);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   pointer-events: auto; /* само окно снова реагирует на тапы */
-  animation: window-open 0.22s ease-out; /* анимация открытия окна */
+  /* пружинистая кривая с лёгким перелётом — фирменное ощущение "живости" iOS-анимаций */
+  transform: scale(0.86) translateY(24px);
+  opacity: 0;
+  animation: window-open 0.42s cubic-bezier(0.34, 1.42, 0.55, 1) forwards;
+}
+.app-window.closing {
+  animation: window-close 0.28s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  pointer-events: none;
 }
 
 @keyframes window-open {
-  from { opacity: 0; transform: scale(0.9); }
-  to   { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0; transform: scale(0.86) translateY(24px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes window-close {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.9) translateY(16px); }
 }
 
 .window-titlebar {
@@ -247,6 +266,11 @@ body.dark .app-icon .icon-glyph {
   background: #F1F2F4;
   color: var(--oneui-text-sub);
   font-size: 14px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.window-close:active {
+  transform: scale(0.85);
+  background: #E4E6E9;
 }
 
 .window-body {
@@ -255,36 +279,28 @@ body.dark .app-icon .icon-glyph {
   padding: 18px;
 }
 
-/* ============ СИСТЕМНАЯ НАВИГАЦИОННАЯ ПАНЕЛЬ (как в Android/One UI) ============ */
+/* ============ НИЖНЯЯ ПАНЕЛЬ В СТИЛЕ IPHONE (home indicator) ============ */
 .nav-bar {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: var(--nav-bar-height);
   display: flex;
   align-items: center;
-  justify-content: space-around;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(0,0,0,0.04);
+  justify-content: center;
   z-index: 50; /* поверх окон и рабочего стола */
 }
-.nav-btn {
+.home-indicator {
+  width: 134px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--oneui-text-main);
+  opacity: 0.55;
   border: none;
-  background: none;
-  font-size: 16px;
-  color: var(--oneui-text-main);
-  width: 44px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0;
 }
-.nav-btn:active { opacity: 0.5; }
-.nav-btn-home {
-  font-size: 13px;
-  color: var(--oneui-text-sub);
+.home-indicator:active {
+  opacity: 0.9;
+  transform: scaleX(0.96);
 }
 
 /* ============ ЭКРАН "ПОСЛЕДНИЕ ПРИЛОЖЕНИЯ" (recents) ============ */
@@ -300,6 +316,23 @@ body.dark .app-icon .icon-glyph {
   z-index: 40;
 }
 .recents-screen.active { display: flex; }
+
+.recents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.recents-title { font-weight: 700; font-size: 18px; }
+.recents-close {
+  border: none;
+  background: var(--oneui-card);
+  box-shadow: var(--oneui-shadow);
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  color: var(--oneui-text-sub);
+}
 
 .recents-grid {
   display: grid;
@@ -347,38 +380,44 @@ body.dark .app-icon .icon-glyph {
 .lock-content {
   margin: auto;
   text-align: center;
+  padding: 0 24px;
 }
 .lock-time {
-  font-size: 88px;
+  font-size: 92px;
   font-weight: 200;
-  letter-spacing: -2px;
+  letter-spacing: -3px;
+  line-height: 1;
+  /* мягкое свечение под цифрами — придаёт атмосферности вместо плоского текста */
+  text-shadow: 0 4px 40px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.15);
 }
 .lock-date {
-  font-size: 16px;
-  opacity: 0.85;
-  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-top: 10px;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.25);
 }
 .lock-notifications {
-  margin-top: 24px;
+  margin-top: 28px;
 }
 .lock-unlock {
   position: absolute;
-  left: 0; right: 0; bottom: 60px;
+  left: 0; right: 0; bottom: 64px;
   border: none;
   background: none;
   color: #fff;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  opacity: 0.85;
-  animation: lock-bounce 1.8s ease-in-out infinite; /* лёгкое покачивание стрелки-подсказки */
+  gap: 8px;
+  opacity: 0.8;
+  animation: lock-bounce 2.2s ease-in-out infinite; /* лёгкое покачивание стрелки-подсказки */
 }
-.lock-unlock-arrow { font-size: 18px; }
-.lock-unlock-text { font-size: 13px; }
+.lock-unlock-arrow { font-size: 16px; }
+.lock-unlock-text { font-size: 13px; font-weight: 500; letter-spacing: 0.2px; }
 @keyframes lock-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-10px); opacity: 0.9; }
 }
 
 /* ============ ШТОРКА БЫСТРЫХ НАСТРОЕК ============ */
