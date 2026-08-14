@@ -88,33 +88,81 @@ const APPS = [
 const DEFAULT_PREINSTALLED_APPS = ["calc", "weather"];
 
 // ============================================================
-//  ИКОНКИ ПРИЛОЖЕНИЙ (Tabler Icons, MIT-лицензия — можно свободно использовать)
+//  ИКОНКИ ПРИЛОЖЕНИЙ — ПОЛНОСТЬЮ ВСТРОЕННЫЕ SVG (без внешнего CDN)
 // ============================================================
-// CDN с открытыми SVG-иконками вместо эмодзи — выглядит гораздо аккуратнее.
-// Полный список названий иконок: https://tabler.io/icons
-const ICON_CDN = "https://cdn.jsdelivr.net/npm/@tabler/icons@2.47.0/icons/outline/";
+// Раньше иконки грузились с внешнего CDN (unpkg/jsdelivr) — из-за политики безопасности
+// внутри WebView Telegram inline-обработчик onerror мог блокироваться, и вместо отката
+// на эмодзи оставалась "битая картинка". Теперь SVG лежат прямо в коде: сети не нужно,
+// значит и ломаться нечему. Каждая запись — минимальный набор фигур в духе line-иконок.
+const ICON_PATHS = {
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1z"/>',
+  cart: '<circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M3 4h2l2.4 11.4a1.9 1.9 0 0 0 1.9 1.6h7.4a1.9 1.9 0 0 0 1.9-1.6L21 8H6"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+  notes: '<path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 12h6M9 16h6"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>',
+  folder: '<path d="M3 6a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z"/>',
+  search: '<circle cx="10" cy="10" r="7"/><path d="M21 21l-6-6"/>',
+  mobile: '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/>',
+  phone: '<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v3a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  message: '<path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z"/>',
+  camera: '<path d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="14" r="3.5"/>',
+  photo: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-9 9"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  headphones: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="2" y="14" width="5" height="7" rx="1.5"/><rect x="17" y="14" width="5" height="7" rx="1.5"/>',
+  play: '<circle cx="12" cy="12" r="9"/><path d="M10 9l6 3-6 3z"/>',
+  facebook: '<path d="M15 4h-2a4 4 0 0 0-4 4v3H7v4h2v7h4v-7h3l1-4h-4V8a1 1 0 0 1 1-1h3z"/>',
+  sparkles: '<path d="M12 3l1.6 4.8L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.2z"/><path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
+  calculator: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h1M12 11h1M16 11h1M8 15h1M12 15h1M16 15h1M8 18h1M12 18h1M16 18h1"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-2A4.5 4.5 0 0 1 17 18z"/>',
+  bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6V16h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="M15 9l-2 6-6 2 2-6z"/>',
+  ruler: '<path d="M4 15l5-5 3 3 8-8"/><path d="M15 4l2.5 2.5M18 7l2 2"/>',
+  scan: '<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M4 12h16"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  qr: '<rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h3v3h-3zM20 17v3h-3M17 20h-3"/>',
+  checklist: '<path d="M4 6h9M4 12h9M4 18h6"/><path d="M16 6l2 2 3-3M16 16l2 2 3-3"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M3 12h18"/>',
+  language: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18"/>',
+  video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
+  news: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h6M7 12h10M7 16h10"/>',
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  movie: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 5v14M16 5v14M3 10h5M16 10h5M3 15h5M16 15h5"/>',
+  gamepad: '<path d="M6 9h4M8 7v4"/><circle cx="15.5" cy="8.5" r="1"/><circle cx="18" cy="11" r="1"/><path d="M6 9a4 4 0 0 0-4 4l1 5a2 2 0 0 0 3.6 1.1L9 16h6l2.4 3.1A2 2 0 0 0 21 18l1-5a4 4 0 0 0-4-4z"/>',
+  radio: '<circle cx="12" cy="14" r="5"/><path d="M12 14v.01M4 9l16-5M2 9h20v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/>',
+  heart: '<path d="M12 20s-8-4.5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6.5-8 11-8 11z"/>',
+  run: '<circle cx="15" cy="5" r="2"/><path d="M11 21l2-6 2 2 3 1M9 15l2-4-2-3-4 1M9 8l4 1 3-3"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>',
+  palette: '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10.5" r="1.2"/><circle cx="12" cy="8" r="1.2"/><circle cx="15.5" cy="10.5" r="1.2"/><path d="M12 21a3 3 0 0 1-3-3c0-1 .5-1.5 1-2h4c.5.5 1 1 1 2a3 3 0 0 1-3 3z"/>',
+  aperture: '<circle cx="12" cy="12" r="9"/><path d="M12 3v6M8 19l3-5M16 19l-3-5M4 8l6 2M20 8l-6 2"/>',
+  brand_google: '<path d="M20 12a8 8 0 1 1-2.3-5.6M20 12h-8"/>',
+};
 
-// id приложения → имя файла иконки на CDN (без .svg)
+// id приложения → ключ в ICON_PATHS
 const APP_ICON_SLUGS = {
-  settings: "settings", store: "shopping-cart", chrome: "world", notes: "notes",
-  about: "info-circle", myfiles: "folder", google: "search", device: "device-mobile",
+  settings: "settings", store: "cart", chrome: "globe", notes: "notes",
+  about: "info", myfiles: "folder", google: "search", device: "mobile",
   phone: "phone", messages: "message", camera: "camera", gallery: "photo",
-  contacts: "user", calendar: "calendar-event", spotify: "headphones", ytmusic: "player-play",
-  facebook: "brand-facebook", gemini: "sparkles", gplay: "brand-google-play",
+  contacts: "user", calendar: "calendar", spotify: "headphones", ytmusic: "play",
+  facebook: "facebook", gemini: "sparkles", gplay: "play",
   calc: "calculator", weather: "cloud", flashlight: "bulb", compass: "compass",
-  converter: "ruler-2", scanner: "scan", recorder: "microphone", qr: "qrcode",
-  todo: "checklist", cloud: "cloud-computing", mail: "mail", office: "briefcase",
-  translator: "language", chat: "message-circle", video: "video", social: "news",
-  music: "music", "video-player": "movie", games: "device-gamepad-2", podcast: "headphones",
+  converter: "ruler", scanner: "scan", recorder: "mic", qr: "qr",
+  todo: "checklist", cloud: "cloud", mail: "mail", office: "briefcase",
+  translator: "language", chat: "message", video: "video", social: "news",
+  music: "music", "video-player": "movie", games: "gamepad", podcast: "headphones",
   radio: "radio", health: "heart", fitness: "run", sleep: "moon",
   editor: "palette", "camera-pro": "aperture",
 };
 
-// Возвращает готовый HTML для иконки: SVG с CDN, если он есть в карте, иначе эмодзи-заглушка
+// Возвращает готовый HTML для иконки: встроенный SVG, если он есть в карте, иначе эмодзи-заглушка.
+// Никаких сетевых запросов — значит, иконка физически не может оказаться "битой картинкой".
 function iconMarkup(app) {
-  const slug = APP_ICON_SLUGS[app.id];
-  if (slug) {
-    return `<img src="${ICON_CDN}${slug}.svg" alt="" style="width:26px;height:26px;" />`;
+  const key = APP_ICON_SLUGS[app.id];
+  const path = key && ICON_PATHS[key];
+  if (path) {
+    return `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
   }
   return app.icon; // запасной вариант — эмодзи, если для этого id иконки ещё нет в карте
 }
@@ -433,32 +481,20 @@ function closeRecents() {
 }
 
 function setupNavBar() {
-  const indicator = document.getElementById("home-indicator");
-  document.getElementById("recents-close").addEventListener("click", closeRecents);
-
-  let pressTimer = null;
-  let longPressFired = false;
-
-  indicator.addEventListener("touchstart", (e) => {
-    e.preventDefault(); // не даём странице скроллиться/выделяться при долгом тапе
-    longPressFired = false;
-    pressTimer = setTimeout(() => {
-      longPressFired = true;
-      tg.HapticFeedback.impactOccurred("medium");
-      openRecents(); // долгий тап по полоске — как свайп-вверх-и-пауза на iPhone, открывает обзор приложений
-    }, 450);
-  }, { passive: false });
-
-  indicator.addEventListener("touchend", () => {
-    clearTimeout(pressTimer);
-    if (!longPressFired) {
-      tg.HapticFeedback.impactOccurred("light");
-      goHome(); // короткий тап — просто домой
-    }
+  document.getElementById("nav-home").addEventListener("click", () => {
+    tg.HapticFeedback.impactOccurred("light");
+    goHome();
   });
-
-  // на десктопе (для тестов в обычном браузере без touch) — обычный клик тоже уводит домой
-  indicator.addEventListener("click", () => { if (!longPressFired) goHome(); });
+  document.getElementById("nav-back").addEventListener("click", () => {
+    tg.HapticFeedback.impactOccurred("light");
+    goBack();
+  });
+  document.getElementById("nav-recents").addEventListener("click", () => {
+    tg.HapticFeedback.impactOccurred("light");
+    const recents = document.getElementById("recents-screen");
+    recents.classList.contains("active") ? closeRecents() : openRecents();
+  });
+  document.getElementById("recents-close").addEventListener("click", closeRecents);
 }
 
 // ============================================================
@@ -543,45 +579,47 @@ function shopApp(id, name, icon, category, rating, size, render) {
 }
 
 const STORE_CATALOG = [
-  // ---- Инструменты (с рабочей логикой-примером) ----
+  // ---- Инструменты ----
   shopApp("calc", "Калькулятор", "🧮", "Инструменты", 4.6, "1.2 МБ", renderCalcApp),
   shopApp("weather", "Погода", "☀️", "Инструменты", 4.4, "3.4 МБ", renderWeatherApp),
-  shopApp("flashlight", "Фонарик", "🔦", "Инструменты", 4.2, "0.8 МБ"),
-  shopApp("compass", "Компас", "🧭", "Инструменты", 4.0, "1.5 МБ"),
-  shopApp("converter", "Конвертер единиц", "📐", "Инструменты", 4.3, "2.1 МБ"),
-  shopApp("scanner", "Сканер документов", "📄", "Инструменты", 4.5, "12 МБ"),
-  shopApp("recorder", "Диктофон", "🎙️", "Инструменты", 4.1, "3.9 МБ"),
-  shopApp("qr", "QR-сканер", "🔳", "Инструменты", 4.4, "4.2 МБ"),
+  shopApp("flashlight", "Фонарик", "🔦", "Инструменты", 4.2, "0.8 МБ", renderFlashlightApp),
+  shopApp("compass", "Компас", "🧭", "Инструменты", 4.0, "1.5 МБ", renderCompassApp),
+  shopApp("converter", "Конвертер единиц", "📐", "Инструменты", 4.3, "2.1 МБ", renderConverterApp),
+  shopApp("scanner", "Сканер документов", "📄", "Инструменты", 4.5, "12 МБ", renderCameraApp),
+  shopApp("recorder", "Диктофон", "🎙️", "Инструменты", 4.1, "3.9 МБ", renderRecorderApp),
+  shopApp("qr", "QR-сканер", "🔳", "Инструменты", 4.4, "4.2 МБ", renderQrApp),
 
   // ---- Продуктивность ----
-  shopApp("cal-app", "Календарь Pro", "📅", "Продуктивность", 4.5, "9 МБ"),
-  shopApp("todo", "Задачи", "✅", "Продуктивность", 4.6, "6 МБ"),
-  shopApp("cloud", "Облако", "☁️", "Продуктивность", 4.3, "15 МБ"),
-  shopApp("mail", "Почта", "📧", "Продуктивность", 4.2, "22 МБ"),
-  shopApp("office", "Офисный пакет", "📊", "Продуктивность", 4.4, "45 МБ"),
-  shopApp("translator", "Переводчик", "🌍", "Продуктивность", 4.5, "18 МБ"),
+  shopApp("cal-app", "Календарь Pro", "📅", "Продуктивность", 4.5, "9 МБ", renderCalendarApp),
+  shopApp("todo", "Задачи", "✅", "Продуктивность", 4.6, "6 МБ", renderTodoApp),
+  shopApp("cloud", "Облако", "☁️", "Продуктивность", 4.3, "15 МБ", renderCloudApp),
+  shopApp("mail", "Почта", "📧", "Продуктивность", 4.2, "22 МБ", renderMailApp),
+  shopApp("office", "Офисный пакет", "📊", "Продуктивность", 4.4, "45 МБ", renderOfficeApp),
+  shopApp("translator", "Переводчик", "🌍", "Продуктивность", 4.5, "18 МБ", renderTranslatorApp),
 
-  // ---- Соцсети и общение ----
-  shopApp("chat", "Мессенджер", "💬", "Общение", 4.3, "28 МБ"),
-  shopApp("video", "Видеозвонки", "📹", "Общение", 4.2, "31 МБ"),
-  shopApp("social", "Лента новостей", "📰", "Общение", 4.0, "26 МБ"),
+  // ---- Общение ----
+  shopApp("chat", "Мессенджер", "💬", "Общение", 4.3, "28 МБ", renderChatApp),
+  shopApp("video", "Видеозвонки", "📹", "Общение", 4.2, "31 МБ", renderVideoCallApp),
+  shopApp("social", "Лента новостей", "📰", "Общение", 4.0, "26 МБ", renderSocialApp),
 
   // ---- Развлечения ----
-  shopApp("music", "Музыка", "🎵", "Развлечения", 4.6, "19 МБ"),
-  shopApp("video-player", "Видеоплеер", "🎬", "Развлечения", 4.4, "24 МБ"),
-  shopApp("games", "Игровой центр", "🎮", "Развлечения", 4.5, "40 МБ"),
-  shopApp("podcast", "Подкасты", "🎧", "Развлечения", 4.3, "14 МБ"),
-  shopApp("radio", "Радио", "📻", "Развлечения", 4.1, "8 МБ"),
+  shopApp("music", "Музыка", "🎵", "Развлечения", 4.6, "19 МБ", makeLocalPlayerApp("audio/*")),
+  shopApp("video-player", "Видеоплеер", "🎬", "Развлечения", 4.4, "24 МБ", makeLocalPlayerApp("video/*")),
+  shopApp("games", "Игровой центр", "🎮", "Развлечения", 4.5, "40 МБ", renderGamesApp),
+  shopApp("podcast", "Подкасты", "🎧", "Развлечения", 4.3, "14 МБ",
+    makeStreamPlayerApp("https://ice1.somafm.com/groovesalad-128-mp3", "SomaFM · Groove Salad")),
+  shopApp("radio", "Радио", "📻", "Развлечения", 4.1, "8 МБ",
+    makeStreamPlayerApp("https://ice1.somafm.com/defcon-128-mp3", "SomaFM · DEF CON Radio")),
 
-  // ---- Здоровье и стиль жизни ----
-  shopApp("health", "Здоровье", "❤️", "Здоровье", 4.4, "16 МБ"),
-  shopApp("fitness", "Фитнес-трекер", "🏃", "Здоровье", 4.3, "20 МБ"),
-  shopApp("sleep", "Сон", "😴", "Здоровье", 4.2, "9 МБ"),
+  // ---- Здоровье ----
+  shopApp("health", "Здоровье", "❤️", "Здоровье", 4.4, "16 МБ", makeTrackerApp("oneui_health", "мл воды", "Учёт воды")),
+  shopApp("fitness", "Фитнес-трекер", "🏃", "Здоровье", 4.3, "20 МБ", makeTrackerApp("oneui_fitness", "шагов", "Шаги")),
+  shopApp("sleep", "Сон", "😴", "Здоровье", 4.2, "9 МБ", makeTrackerApp("oneui_sleep", "часов", "Сон")),
 
-  // ---- Фото и графика ----
-  shopApp("gallery", "Галерея Плюс", "🖼️", "Фото", 4.5, "17 МБ"),
-  shopApp("editor", "Фоторедактор", "🎨", "Фото", 4.4, "33 МБ"),
-  shopApp("camera-pro", "Камера Pro", "📷", "Фото", 4.6, "27 МБ"),
+  // ---- Фото ----
+  shopApp("gallery-plus", "Галерея Плюс", "🖼️", "Фото", 4.5, "17 МБ", renderGalleryApp),
+  shopApp("editor", "Фоторедактор", "🎨", "Фото", 4.4, "33 МБ", renderEditorApp),
+  shopApp("camera-pro", "Камера Pro", "📷", "Фото", 4.6, "27 МБ", renderCameraApp),
 ];
 
 function starRating(rating) {
@@ -1028,6 +1066,542 @@ function renderExternalApp(container, name, url) {
 }
 
 // ============================================================
+//  ФОНАРИК (реальное включение вспышки камеры устройства)
+// ============================================================
+function renderFlashlightApp(container) {
+  container.innerHTML = `
+    <p style="color:var(--oneui-text-sub);font-size:13px;margin-bottom:14px;">
+      Использует заднюю камеру телефона со вспышкой. Если кнопка не сработала — у устройства/браузера нет доступа к "torch".
+    </p>
+    <button id="flash-toggle" style="width:100%;border:none;background:var(--oneui-accent);color:#fff;
+      padding:16px;border-radius:999px;font-weight:700;">🔦 Включить</button>
+    <p id="flash-error" style="color:#E5484D;font-size:13px;margin-top:10px;"></p>
+  `;
+  let stream = null, on = false;
+  const btn = container.querySelector("#flash-toggle");
+  const err = container.querySelector("#flash-error");
+
+  btn.addEventListener("click", async () => {
+    try {
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      }
+      const track = stream.getVideoTracks()[0];
+      on = !on;
+      await track.applyConstraints({ advanced: [{ torch: on }] }); // "torch" — реальный стандартный constraint для вспышки
+      btn.textContent = on ? "🔦 Выключить" : "🔦 Включить";
+    } catch (e) {
+      err.textContent = "Вспышка недоступна на этом устройстве/браузере: " + e.message;
+    }
+  });
+}
+
+// ============================================================
+//  КОМПАС (реальные данные с датчика ориентации телефона)
+// ============================================================
+function renderCompassApp(container) {
+  container.innerHTML = `
+    <div style="text-align:center;">
+      <div id="compass-needle" style="font-size:64px;transition:transform 0.15s linear;display:inline-block;">🧭</div>
+      <p id="compass-heading" style="font-size:22px;font-weight:700;margin-top:10px;">—°</p>
+      <p style="color:var(--oneui-text-sub);font-size:13px;margin-top:6px;">
+        Поверните телефон — стрелка использует реальный магнитометр устройства.
+      </p>
+      <button id="compass-enable" style="margin-top:14px;border:none;background:var(--oneui-accent);
+        color:#fff;padding:12px 20px;border-radius:999px;font-weight:700;">Разрешить доступ к датчику</button>
+    </div>
+  `;
+  const needle = container.querySelector("#compass-needle");
+  const headingText = container.querySelector("#compass-heading");
+
+  function handleOrientation(e) {
+    // webkitCompassHeading — точный компас на iOS; alpha — стандартное поле на Android
+    const heading = e.webkitCompassHeading ?? (e.alpha != null ? 360 - e.alpha : null);
+    if (heading == null) return;
+    needle.style.transform = `rotate(${-heading}deg)`;
+    headingText.textContent = `${Math.round(heading)}°`;
+  }
+
+  container.querySelector("#compass-enable").addEventListener("click", async () => {
+    // на iOS нужно явное разрешение пользователя на датчики движения — обязательный шаг
+    if (typeof DeviceOrientationEvent?.requestPermission === "function") {
+      try { await DeviceOrientationEvent.requestPermission(); } catch (e) { return; }
+    }
+    window.addEventListener("deviceorientation", handleOrientation);
+  });
+}
+
+// ============================================================
+//  КОНВЕРТЕР ЕДИНИЦ (настоящая математика, не заглушка)
+// ============================================================
+function renderConverterApp(container) {
+  const UNITS = {
+    length: { m: 1, km: 1000, cm: 0.01, mile: 1609.34, ft: 0.3048 },
+    weight: { kg: 1, g: 0.001, lb: 0.453592, oz: 0.0283495 },
+  };
+  container.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input id="conv-value" type="number" value="1" style="flex:1;border:none;background:var(--oneui-bg);
+        border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);" />
+      <select id="conv-from" style="border:none;background:var(--oneui-bg);border-radius:12px;padding:10px;"></select>
+      <select id="conv-to" style="border:none;background:var(--oneui-bg);border-radius:12px;padding:10px;"></select>
+    </div>
+    <p id="conv-result" style="font-size:28px;font-weight:300;text-align:center;"></p>
+  `;
+  const fromSel = container.querySelector("#conv-from");
+  const toSel = container.querySelector("#conv-to");
+  const allUnits = { ...UNITS.length, ...UNITS.weight };
+  Object.keys(allUnits).forEach((u) => {
+    fromSel.innerHTML += `<option value="${u}">${u}</option>`;
+    toSel.innerHTML += `<option value="${u}">${u}</option>`;
+  });
+  toSel.value = "km";
+
+  function recalc() {
+    const value = parseFloat(container.querySelector("#conv-value").value) || 0;
+    const from = fromSel.value, to = toSel.value;
+    const inLength = from in UNITS.length && to in UNITS.length;
+    const inWeight = from in UNITS.weight && to in UNITS.weight;
+    const table = inLength ? UNITS.length : inWeight ? UNITS.weight : null;
+    const result = table ? (value * table[from]) / table[to] : null;
+    container.querySelector("#conv-result").textContent =
+      result === null ? "Единицы из разных категорий" : `${value} ${from} = ${(+result.toFixed(6))} ${to}`;
+  }
+  container.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", recalc));
+  recalc();
+}
+
+// ============================================================
+//  ДИКТОФОН (реальная запись звука с микрофона)
+// ============================================================
+function renderRecorderApp(container) {
+  container.innerHTML = `
+    <button id="rec-toggle" style="width:100%;border:none;background:#E5484D;color:#fff;
+      padding:16px;border-radius:999px;font-weight:700;">⏺ Начать запись</button>
+    <p id="rec-status" style="text-align:center;color:var(--oneui-text-sub);font-size:13px;margin-top:10px;"></p>
+    <div id="rec-list" style="margin-top:16px;"></div>
+  `;
+  let mediaRecorder, chunks = [], recordings = [];
+  const btn = container.querySelector("#rec-toggle");
+  const status = container.querySelector("#rec-status");
+  const list = container.querySelector("#rec-list");
+
+  btn.addEventListener("click", async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const url = URL.createObjectURL(new Blob(chunks, { type: "audio/webm" }));
+        recordings.unshift(url);
+        stream.getTracks().forEach((t) => t.stop()); // отпускаем микрофон после записи
+        renderList();
+        btn.textContent = "⏺ Начать запись";
+        status.textContent = "";
+      };
+      mediaRecorder.start();
+      btn.textContent = "⏹ Остановить";
+      status.textContent = "Идёт запись...";
+    } catch (e) {
+      status.textContent = "Нет доступа к микрофону: " + e.message;
+    }
+  });
+
+  function renderList() {
+    list.innerHTML = "";
+    recordings.forEach((url, i) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:10px;padding:8px 0;";
+      row.innerHTML = `<span style="font-size:13px;">Запись ${recordings.length - i}</span>`;
+      const audio = document.createElement("audio");
+      audio.src = url; audio.controls = true; audio.style.flex = "1"; audio.style.height = "32px";
+      row.appendChild(audio);
+      list.appendChild(row);
+    });
+  }
+}
+
+// ============================================================
+//  QR-СКАНЕР (реальное распознавание через камеру, если браузер поддерживает BarcodeDetector)
+// ============================================================
+function renderQrApp(container) {
+  if (!("BarcodeDetector" in window)) {
+    container.innerHTML = `<p style="color:var(--oneui-text-sub);font-size:14px;">
+      Этот браузер не поддерживает встроенный BarcodeDetector API — сканирование QR недоступно без сторонней библиотеки.</p>`;
+    return;
+  }
+  container.innerHTML = `
+    <video id="qr-video" autoplay playsinline style="width:100%;border-radius:16px;background:#000;"></video>
+    <p id="qr-result" style="margin-top:12px;font-size:15px;font-weight:600;word-break:break-all;"></p>
+  `;
+  const video = container.querySelector("#qr-video");
+  const result = container.querySelector("#qr-result");
+  const detector = new BarcodeDetector({ formats: ["qr_code"] });
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then((stream) => {
+    video.srcObject = stream;
+    const scan = async () => {
+      try {
+        const codes = await detector.detect(video);
+        if (codes.length) result.textContent = "Найдено: " + codes[0].rawValue;
+      } catch (e) { /* кадр мог быть ещё не готов — просто пробуем на следующем кадре */ }
+      requestAnimationFrame(scan);
+    };
+    scan();
+  }).catch((e) => { result.textContent = "Нет доступа к камере: " + e.message; });
+}
+
+// ============================================================
+//  ЗАДАЧИ (реальный CRUD-список, аналогично Контактам)
+// ============================================================
+function renderTodoApp(container) {
+  const load = () => JSON.parse(localStorage.getItem("oneui_todos") || "[]");
+  const save = (list) => localStorage.setItem("oneui_todos", JSON.stringify(list));
+
+  function draw() {
+    const todos = load();
+    container.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <input id="todo-text" placeholder="Новая задача" style="flex:1;border:none;background:var(--oneui-bg);
+          border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);" />
+        <button id="todo-add" style="border:none;background:var(--oneui-accent);color:#fff;
+          width:40px;border-radius:12px;font-size:18px;">+</button>
+      </div>
+      <div id="todo-list"></div>
+    `;
+    const list = container.querySelector("#todo-list");
+    todos.forEach((t, i) => {
+      const row = document.createElement("div");
+      row.className = "settings-row";
+      row.innerHTML = `
+        <span style="${t.done ? "text-decoration:line-through;color:var(--oneui-text-sub);" : ""}">${t.text}</span>
+        <div style="display:flex;gap:10px;">
+          <button data-done="${i}" style="border:none;background:none;font-size:16px;">${t.done ? "↩️" : "✅"}</button>
+          <button data-del="${i}" style="border:none;background:none;font-size:16px;">✕</button>
+        </div>
+      `;
+      row.querySelector("[data-done]").addEventListener("click", () => {
+        const updated = load(); updated[i].done = !updated[i].done; save(updated); draw();
+      });
+      row.querySelector("[data-del]").addEventListener("click", () => {
+        const updated = load(); updated.splice(i, 1); save(updated); draw();
+      });
+      list.appendChild(row);
+    });
+
+    container.querySelector("#todo-add").addEventListener("click", () => {
+      const text = container.querySelector("#todo-text").value.trim();
+      if (!text) return;
+      const updated = load(); updated.push({ text, done: false }); save(updated); draw();
+    });
+  }
+  draw();
+}
+
+// ============================================================
+//  ОБЛАКО (реальное чтение метаданных файлов с телефона — без загрузки на сервер)
+// ============================================================
+function renderCloudApp(container) {
+  container.innerHTML = `
+    <p style="color:var(--oneui-text-sub);font-size:13px;margin-bottom:12px;">
+      Здесь нет настоящего сервера для хранения — но выбор файлов и их реальный размер/тип показаны честно.
+    </p>
+    <input id="cloud-input" type="file" multiple style="margin-bottom:14px;" />
+    <div id="cloud-list"></div>
+  `;
+  container.querySelector("#cloud-input").addEventListener("change", (e) => {
+    const list = container.querySelector("#cloud-list");
+    list.innerHTML = "";
+    Array.from(e.target.files).forEach((f) => {
+      const row = document.createElement("div");
+      row.className = "folder-row";
+      row.innerHTML = `<div class="icon-glyph">📄</div>
+        <div><div class="folder-row-title">${f.name}</div>
+        <div class="folder-row-meta">${(f.size / 1024).toFixed(1)} КБ · ${f.type || "неизвестный тип"}</div></div>`;
+      list.appendChild(row);
+    });
+  });
+}
+
+// ============================================================
+//  ПОЧТА (реальный mailto: — открывает настоящее приложение почты)
+// ============================================================
+function renderMailApp(container) {
+  container.innerHTML = `
+    <input id="mail-to" placeholder="Кому" style="width:100%;border:none;background:var(--oneui-bg);
+      border-radius:12px;padding:10px;margin-bottom:8px;font-size:14px;color:var(--oneui-text-main);" />
+    <input id="mail-subject" placeholder="Тема" style="width:100%;border:none;background:var(--oneui-bg);
+      border-radius:12px;padding:10px;margin-bottom:8px;font-size:14px;color:var(--oneui-text-main);" />
+    <textarea id="mail-body" placeholder="Текст письма" style="width:100%;height:100px;border:none;
+      background:var(--oneui-bg);border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);"></textarea>
+    <button id="mail-send" style="width:100%;margin-top:10px;border:none;background:var(--oneui-accent);
+      color:#fff;padding:14px;border-radius:999px;font-weight:700;">Открыть в Почте</button>
+  `;
+  container.querySelector("#mail-send").addEventListener("click", () => {
+    const to = container.querySelector("#mail-to").value.trim();
+    const subject = encodeURIComponent(container.querySelector("#mail-subject").value);
+    const body = encodeURIComponent(container.querySelector("#mail-body").value);
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  });
+}
+
+// ============================================================
+//  ОФИСНЫЙ ПАКЕТ (реальный текстовый редактор с сохранением)
+// ============================================================
+function renderOfficeApp(container) {
+  const saved = localStorage.getItem("oneui_document") || "";
+  container.innerHTML = `
+    <div contenteditable="true" id="doc-editor" style="min-height:220px;background:var(--oneui-bg);
+      border-radius:14px;padding:14px;font-size:14px;line-height:1.5;outline:none;">${saved}</div>
+    <p id="doc-status" style="font-size:12px;color:var(--oneui-text-sub);margin-top:8px;">Сохраняется автоматически</p>
+  `;
+  const editor = container.querySelector("#doc-editor");
+  editor.addEventListener("input", () => {
+    localStorage.setItem("oneui_document", editor.innerHTML); // реально сохраняется между открытиями
+  });
+}
+
+// ============================================================
+//  ПЕРЕВОДЧИК (реальный перевод через бесплатный публичный API MyMemory, без ключа)
+// ============================================================
+function renderTranslatorApp(container) {
+  container.innerHTML = `
+    <textarea id="tr-input" placeholder="Введите текст" style="width:100%;height:80px;border:none;
+      background:var(--oneui-bg);border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);"></textarea>
+    <div style="display:flex;gap:8px;margin:10px 0;">
+      <select id="tr-from" style="flex:1;border:none;background:var(--oneui-bg);border-radius:12px;padding:8px;">
+        <option value="ru">Русский</option><option value="en">English</option><option value="es">Español</option>
+      </select>
+      <select id="tr-to" style="flex:1;border:none;background:var(--oneui-bg);border-radius:12px;padding:8px;">
+        <option value="en">English</option><option value="ru">Русский</option><option value="es">Español</option>
+      </select>
+    </div>
+    <button id="tr-go" style="width:100%;border:none;background:var(--oneui-accent);color:#fff;
+      padding:12px;border-radius:999px;font-weight:700;">Перевести</button>
+    <p id="tr-result" style="margin-top:12px;font-size:15px;"></p>
+  `;
+  container.querySelector("#tr-go").addEventListener("click", async () => {
+    const text = container.querySelector("#tr-input").value.trim();
+    const from = container.querySelector("#tr-from").value;
+    const to = container.querySelector("#tr-to").value;
+    const resultEl = container.querySelector("#tr-result");
+    if (!text) return;
+    resultEl.textContent = "Перевожу...";
+    try {
+      // MyMemory — бесплатный публичный API перевода, ключ не требуется
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
+      const data = await res.json();
+      resultEl.textContent = data.responseData?.translatedText || "Не удалось перевести";
+    } catch (e) {
+      resultEl.textContent = "Ошибка сети при обращении к сервису перевода";
+    }
+  });
+}
+
+// ============================================================
+//  МЕССЕНДЖЕР (реально открывает сам Telegram)
+// ============================================================
+function renderChatApp(container) {
+  container.innerHTML = `<p style="font-size:14px;color:var(--oneui-text-sub);margin-bottom:14px;">
+    У вас уже есть настоящий мессенджер — сам Telegram. Кнопка открывает его список чатов.</p>
+    <button id="chat-open" style="width:100%;border:none;background:var(--oneui-accent);color:#fff;
+      padding:14px;border-radius:999px;font-weight:700;">Открыть Telegram</button>`;
+  container.querySelector("#chat-open").addEventListener("click", () => {
+    // openTelegramLink — родной метод SDK именно для ссылок вида t.me
+    (tg.openTelegramLink || tg.openLink).call(tg, "https://t.me");
+  });
+}
+
+// ============================================================
+//  ВИДЕОЗВОНКИ (реальный предпросмотр своей камеры+микрофона — как перед звонком)
+// ============================================================
+function renderVideoCallApp(container) {
+  container.innerHTML = `
+    <video id="call-preview" autoplay playsinline muted style="width:100%;border-radius:16px;background:#000;"></video>
+    <p style="font-size:12px;color:var(--oneui-text-sub);margin-top:8px;">
+      Это честный предпросмотр вашей камеры и микрофона — без сервера подключение к другому человеку невозможно.
+    </p>
+  `;
+  navigator.mediaDevices?.getUserMedia({ video: true, audio: true })
+    .then((stream) => { container.querySelector("#call-preview").srcObject = stream; })
+    .catch((e) => { container.innerHTML += `<p style="color:#E5484D;font-size:13px;">${e.message}</p>`; });
+}
+
+// ============================================================
+//  ЛЕНТА НОВОСТЕЙ (реальные live-новости с открытого Hacker News API, без ключа)
+// ============================================================
+async function renderSocialApp(container) {
+  container.innerHTML = `<p style="color:var(--oneui-text-sub);font-size:13px;">Загружаю ленту...</p>`;
+  try {
+    const idsRes = await fetch("https://hacker-news.firebaseio.com/v0/topstories.json");
+    const ids = (await idsRes.json()).slice(0, 10);
+    const items = await Promise.all(
+      ids.map((id) => fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then((r) => r.json()))
+    );
+    container.innerHTML = "";
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      row.style.cssText = "padding:12px 0;border-bottom:1px solid #F1F2F4;";
+      row.innerHTML = `<div style="font-weight:600;font-size:14px;">${item.title}</div>
+        <div style="font-size:12px;color:var(--oneui-text-sub);margin-top:2px;">${item.score} баллов · ${item.by}</div>`;
+      row.addEventListener("click", () => item.url && tg.openLink(item.url));
+      container.appendChild(row);
+    });
+  } catch (e) {
+    container.innerHTML = `<p style="color:#E5484D;font-size:13px;">Не удалось загрузить ленту: ${e.message}</p>`;
+  }
+}
+
+// ============================================================
+//  МУЗЫКА / ВИДЕОПЛЕЕР (реальное воспроизведение СВОИХ файлов с телефона)
+// ============================================================
+function makeLocalPlayerApp(accept) {
+  return function (container) {
+    container.innerHTML = `
+      <input id="player-input" type="file" accept="${accept}" style="margin-bottom:14px;" />
+      <div id="player-area"></div>
+    `;
+    container.querySelector("#player-input").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const tag = accept.startsWith("audio") ? "audio" : "video";
+      container.querySelector("#player-area").innerHTML =
+        `<${tag} src="${url}" controls style="width:100%;border-radius:12px;"></${tag}>`;
+    });
+  };
+}
+
+// ============================================================
+//  ИГРОВОЙ ЦЕНТР (реальная мини-игра "Крестики-нолики", полностью играбельная)
+// ============================================================
+function renderGamesApp(container) {
+  let board = Array(9).fill(null);
+  let turn = "X";
+
+  function checkWinner() {
+    const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    for (const [a,b,c] of lines) if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+    return board.every(Boolean) ? "Ничья" : null;
+  }
+
+  function draw() {
+    container.innerHTML = `
+      <p style="text-align:center;font-weight:700;margin-bottom:12px;">Крестики-нолики · ход: ${turn}</p>
+      <div id="ttt-board" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:240px;margin:0 auto;"></div>
+      <button id="ttt-reset" style="display:block;margin:16px auto 0;border:none;background:var(--oneui-bg);
+        padding:10px 20px;border-radius:999px;font-size:13px;">Сбросить</button>
+    `;
+    const grid = container.querySelector("#ttt-board");
+    board.forEach((cell, i) => {
+      const btn = document.createElement("button");
+      btn.textContent = cell || "";
+      btn.style.cssText = "aspect-ratio:1;font-size:28px;font-weight:700;border:none;background:var(--oneui-card);border-radius:12px;box-shadow:var(--oneui-shadow);";
+      btn.addEventListener("click", () => {
+        if (board[i] || checkWinner()) return;
+        board[i] = turn;
+        const winner = checkWinner();
+        if (winner) { setTimeout(() => alert(winner === "Ничья" ? "Ничья!" : `Победили ${winner}!`), 50); }
+        turn = turn === "X" ? "O" : "X";
+        draw();
+      });
+      grid.appendChild(btn);
+    });
+    container.querySelector("#ttt-reset").addEventListener("click", () => { board = Array(9).fill(null); turn = "X"; draw(); });
+  }
+  draw();
+}
+
+// ============================================================
+//  РАДИО / ПОДКАСТЫ (реальный живой аудиопоток из интернета)
+// ============================================================
+function makeStreamPlayerApp(streamUrl, label) {
+  return function (container) {
+    container.innerHTML = `
+      <p style="font-weight:600;margin-bottom:10px;">${label}</p>
+      <audio controls autoplay src="${streamUrl}" style="width:100%;"></audio>
+      <p style="font-size:12px;color:var(--oneui-text-sub);margin-top:8px;">Живой поток из открытого интернет-радио.</p>
+    `;
+  };
+}
+
+// ============================================================
+//  ЗДОРОВЬЕ / ФИТНЕС / СОН (реальный локальный трекер с сохранением)
+// ============================================================
+function makeTrackerApp(storageKey, unitLabel, title) {
+  return function (container) {
+    const entries = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    const total = entries.reduce((s, v) => s + v, 0);
+
+    container.innerHTML = `
+      <p style="font-weight:700;margin-bottom:4px;">${title}</p>
+      <p style="font-size:32px;font-weight:300;margin-bottom:14px;">${total} ${unitLabel}</p>
+      <div style="display:flex;gap:8px;">
+        <input id="tracker-value" type="number" placeholder="Добавить" style="flex:1;border:none;
+          background:var(--oneui-bg);border-radius:12px;padding:10px;color:var(--oneui-text-main);" />
+        <button id="tracker-add" style="border:none;background:var(--oneui-accent);color:#fff;
+          padding:0 18px;border-radius:12px;font-weight:700;">+</button>
+      </div>
+    `;
+    container.querySelector("#tracker-add").addEventListener("click", () => {
+      const val = parseFloat(container.querySelector("#tracker-value").value);
+      if (!val) return;
+      entries.push(val);
+      localStorage.setItem(storageKey, JSON.stringify(entries)); // реально сохраняется между запусками
+      makeTrackerApp(storageKey, unitLabel, title)(container); // перерисовываем с новым итогом
+    });
+  };
+}
+
+// ============================================================
+//  ФОТОРЕДАКТОР (реальные canvas-фильтры на своём фото)
+// ============================================================
+function renderEditorApp(container) {
+  container.innerHTML = `
+    <input id="editor-input" type="file" accept="image/*" style="margin-bottom:12px;" />
+    <canvas id="editor-canvas" style="width:100%;border-radius:12px;display:none;"></canvas>
+    <div id="editor-controls" style="display:none;margin-top:12px;">
+      <label style="font-size:12px;color:var(--oneui-text-sub);">Яркость</label>
+      <input id="editor-brightness" type="range" min="50" max="150" value="100" style="width:100%;" />
+      <label style="font-size:12px;color:var(--oneui-text-sub);">Оттенки серого</label>
+      <input id="editor-gray" type="range" min="0" max="100" value="0" style="width:100%;" />
+    </div>
+  `;
+  const canvas = container.querySelector("#editor-canvas");
+  const ctx = canvas.getContext("2d");
+  let img = null;
+
+  function applyFilters() {
+    if (!img) return;
+    const brightness = container.querySelector("#editor-brightness").value;
+    const gray = container.querySelector("#editor-gray").value;
+    ctx.filter = `brightness(${brightness}%) grayscale(${gray}%)`; // настоящие CSS-фильтры canvas, не имитация
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  }
+
+  container.querySelector("#editor-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    img = new Image();
+    img.onload = () => {
+      canvas.width = img.width; canvas.height = img.height;
+      canvas.style.display = "block";
+      container.querySelector("#editor-controls").style.display = "block";
+      applyFilters();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+  container.querySelectorAll("#editor-brightness, #editor-gray").forEach((el) =>
+    el.addEventListener("input", applyFilters)
+  );
+}
+
+// ============================================================
 //  ПРИЛОЖЕНИЕ: О СИСТЕМЕ
 // ============================================================
 function renderAboutApp(container) {
@@ -1043,11 +1617,23 @@ function renderAboutApp(container) {
 function setupLockScreen() {
   const lock = document.getElementById("lock-screen");
   const desktop = document.getElementById("desktop");
+  let unlocking = false;
 
   function unlock() {
-    lock.classList.remove("active");
-    desktop.classList.add("active");
+    if (unlocking) return; // защита от повторного запуска анимации при двойном тапе/свайпе
+    unlocking = true;
+
     tg.HapticFeedback.impactOccurred("medium");
+    tickClock(); // обновляем часы рабочего стола прямо перед показом — никакой задержки/несвежего значения
+
+    // сначала показываем рабочий стол ПОД экраном блокировки (без .active-рывка), затем плавно уводим блокировку вверх
+    desktop.classList.add("active");
+    lock.classList.add("unlocking");
+
+    lock.addEventListener("transitionend", () => {
+      lock.classList.remove("active", "unlocking");
+      unlocking = false;
+    }, { once: true });
   }
 
   document.getElementById("lock-unlock").addEventListener("click", unlock);
