@@ -8,6 +8,11 @@
   <!-- Подключаем официальный JS SDK Telegram Mini Apps — без него не будет доступа к tg.* методам -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
+  <!-- Премиальный шрифт для часов и крупной типографики — геометричный, современный (в духе One UI/iOS) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;500;600;700;800&display=swap" rel="stylesheet" />
+
   <!-- Манифест и цвет темы — без них PWABuilder не соберёт APK -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#1259C3" />
@@ -106,9 +111,17 @@
     <p class="recents-empty" id="recents-empty">Нет открытых приложений</p>
   </div>
 
-  <!-- ===================== СИСТЕМНАЯ НАВИГАЦИЯ (как в iPhone — одна полоска вместо кнопок) ===================== -->
+  <!-- ===================== СИСТЕМНАЯ НАВИГАЦИЯ (оригинальные 3 кнопки Samsung One UI) ===================== -->
   <div class="nav-bar">
-    <button id="home-indicator" class="home-indicator" aria-label="Домой (долгий тап — последние приложения)"></button>
+    <button id="nav-recents" class="nav-btn" aria-label="Последние приложения">
+      <span class="nav-icon nav-icon-square"></span>
+    </button>
+    <button id="nav-home" class="nav-btn" aria-label="Домой">
+      <span class="nav-icon nav-icon-circle"></span>
+    </button>
+    <button id="nav-back" class="nav-btn" aria-label="Назад">
+      <span class="nav-icon nav-icon-triangle"></span>
+    </button>
   </div>
 
   <!-- ===================== ШАБЛОН ОКНА (скрыт, клонируется в JS) ===================== -->
