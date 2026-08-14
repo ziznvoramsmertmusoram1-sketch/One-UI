@@ -1,1136 +1,805 @@
-// ============================================================
-//  ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP
-// ============================================================
-
-// tg — глобальный объект SDK, подключённого в index.html
-const tg = window.Telegram.WebApp;
-
-tg.ready();      // сообщаем Telegram, что интерфейс готов к показу
-tg.expand();      // разворачиваем мини-приложение на весь экран
-tg.setHeaderColor("#F2F3F5"); // цвет шапки Telegram под цвет рабочего стола
-
-// ============================================================
-//  СПИСОК "ПРЕДУСТАНОВЛЕННЫХ" ПРИЛОЖЕНИЙ ОС
-// ============================================================
-// Каждое приложение — объект: id, имя, иконка (эмодзи-заглушка) и функция рендера содержимого окна.
-const APPS = [
-  {
-    id: "settings",
-    name: "Настройки",
-    icon: "⚙️",
-    inDock: true,
-    render: renderSettingsApp,
-  },
-  {
-    id: "store",
-    name: "Магазин",
-    icon: "🛒",
-    inDock: true,
-    render: renderStoreApp,
-  },
-  {
-    id: "chrome",
-    name: "Chrome",
-    icon: "🌐",
-    inDock: true,
-    render: (c) => renderBrowserApp(c, "https://www.google.com"),
-  },
-  {
-    id: "notes",
-    name: "Заметки",
-    icon: "📝",
-    inDock: false,
-    render: renderNotesApp,
-  },
-  {
-    id: "about",
-    name: "О системе",
-    icon: "ℹ️",
-    inDock: false,
-    render: renderAboutApp,
-  },
-  {
-    id: "myfiles",
-    name: "Мои файлы",
-    icon: "📁",
-    inDock: false,
-    render: renderMyFilesApp,
-  },
-  {
-    id: "google",
-    name: "Google",
-    icon: "🔍",
-    inDock: false,
-    render: (c) => renderBrowserApp(c, "https://www.google.com/search?q="),
-  },
-  {
-    id: "device",
-    name: "О телефоне",
-    icon: "📱",
-    inDock: false,
-    render: renderDeviceInfoApp,
-  },
-  { id: "phone", name: "Телефон", icon: "📞", inDock: true, render: renderPhoneApp },
-  { id: "messages", name: "Сообщения", icon: "💬", inDock: false, render: renderMessagesApp },
-  { id: "camera", name: "Камера", icon: "📷", inDock: false, render: renderCameraApp },
-  { id: "gallery", name: "Галерея", icon: "🌸", inDock: false, render: renderGalleryApp },
-  { id: "contacts", name: "Контакты", icon: "👤", inDock: false, render: renderContactsApp },
-  { id: "calendar", name: "Календарь", icon: "📅", inDock: false, render: renderCalendarApp },
-  { id: "spotify", name: "Spotify", icon: "🎧", inDock: false, render: (c) => renderExternalApp(c, "Spotify", "https://open.spotify.com") },
-  { id: "ytmusic", name: "YT Music", icon: "▶️", inDock: false, render: (c) => renderExternalApp(c, "YT Music", "https://music.youtube.com") },
-  { id: "facebook", name: "Facebook", icon: "📘", inDock: false, render: (c) => renderExternalApp(c, "Facebook", "https://facebook.com") },
-  { id: "gemini", name: "Gemini", icon: "✨", inDock: false, render: (c) => renderExternalApp(c, "Gemini", "https://gemini.google.com") },
-  { id: "gplay", name: "Google Play", icon: "▶️", inDock: false, render: (c) => renderExternalApp(c, "Google Play", "https://play.google.com") },
-];
-
-// Приложения из магазина, которые уже стоят "из коробки" при первом запуске —
-// как бывает, когда покупаешь новый телефон и часть софта Samsung уже установлена.
-const DEFAULT_PREINSTALLED_APPS = ["calc", "weather"];
-
-// ============================================================
-//  ИКОНКИ ПРИЛОЖЕНИЙ (Tabler Icons, MIT-лицензия — можно свободно использовать)
-// ============================================================
-// CDN с открытыми SVG-иконками вместо эмодзи — выглядит гораздо аккуратнее.
-// Полный список названий иконок: https://tabler.io/icons
-// (используем unpkg, а не jsdelivr — именно этот путь официально указан в документации Tabler
-// и не бьётся 404 при смене структуры папок между версиями пакета)
-const ICON_CDN = "https://unpkg.com/@tabler/icons@2.47.0/icons/outline/";
-
-// id приложения → имя файла иконки на CDN (без .svg)
-const APP_ICON_SLUGS = {
-  settings: "settings", store: "shopping-cart", chrome: "world", notes: "notes",
-  about: "info-circle", myfiles: "folder", google: "search", device: "device-mobile",
-  phone: "phone", messages: "message", camera: "camera", gallery: "photo",
-  contacts: "user", calendar: "calendar-event", spotify: "headphones", ytmusic: "player-play",
-  facebook: "brand-facebook", gemini: "sparkles", gplay: "brand-google-play",
-  calc: "calculator", weather: "cloud", flashlight: "bulb", compass: "compass",
-  converter: "ruler-2", scanner: "scan", recorder: "microphone", qr: "qrcode",
-  todo: "checklist", cloud: "cloud-computing", mail: "mail", office: "briefcase",
-  translator: "language", chat: "message-circle", video: "video", social: "news",
-  music: "music", "video-player": "movie", games: "device-gamepad-2", podcast: "headphones",
-  radio: "radio", health: "heart", fitness: "run", sleep: "moon",
-  editor: "palette", "camera-pro": "aperture",
-};
-
-// Возвращает готовый HTML для иконки: SVG с CDN, если он есть в карте, иначе эмодзи-заглушка.
-// Если картинка не загрузится (сеть, 404 у конкретного файла) — onerror сам подменит её на эмодзи,
-// чтобы вместо "битой картинки" пользователь всегда видел хоть что-то осмысленное.
-function iconMarkup(app) {
-  const slug = APP_ICON_SLUGS[app.id];
-  if (slug) {
-    const fallback = (app.icon || "📦").replace(/"/g, "");
-    return `<img src="${ICON_CDN}${slug}.svg" alt="" data-fallback="${fallback}"
-      style="width:26px;height:26px;" onerror="this.replaceWith(document.createTextNode(this.dataset.fallback))" />`;
-  }
-  return app.icon; // запасной вариант — эмодзи, если для этого id иконки ещё нет в карте
+/* ============ ШРИФТЫ ============ */
+/* Outfit — для часов и крупной типографики (подключён в index.html через Google Fonts) */
+:root {
+  --font-display: "Outfit", -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+:root {
+  --oneui-bg: #F1F2F6;          /* фон рабочего стола — светло-серый с холодным оттенком */
+  --oneui-card: #FFFFFF;        /* карточки/иконки/окна — белый */
+  --oneui-accent: #1259C3;      /* акцентный синий One UI 8.5 (чуть темнее и глубже, чем раньше) */
+  --oneui-text-main: #1C1C1E;   /* основной текст, почти чёрный */
+  --oneui-text-sub: #6B7076;    /* второстепенный текст */
+  --oneui-radius-lg: 32px;      /* крупное скругление (окна, виджеты) — в 8.5 углы ещё мягче */
+  --oneui-radius-md: 22px;      /* среднее скругление (иконки) */
+  --oneui-shadow: 0 10px 28px rgba(0, 0, 0, 0.09);
+  --play-green: #0F9D58;        /* фирменный зелёный кнопки "Установить" в Play Маркете */
 }
 
-// ============================================================
-//  ХРАНИЛИЩЕ НАСТРОЕК (localStorage — простая "сохранка" на клиенте)
-// ============================================================
-const STORAGE_KEY = "oneui_os_state_v1";
-
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    try { return JSON.parse(raw); } catch (e) { /* повреждённые данные — игнорируем */ }
-  }
-  // состояние по умолчанию, если сохранки ещё нет — как при первой настройке нового Samsung,
-  // часть приложений из магазина уже "предустановлена" из коробки
-  return {
-    darkMode: false,
-    themeMode: "day",  // "day" | "night" | "auto" — управляется в Настройках
-    wallpaper: "wp1",  // id текущих обоев, см. WALLPAPERS
-    installedApps: [...DEFAULT_PREINSTALLED_APPS],
-    currentPage: 0,
-  };
+/* ============ ТЁМНАЯ ТЕМА (ночной режим) ============ */
+/* Все цвета переопределяются через те же переменные — остальной CSS ничего не знает о теме */
+body.dark {
+  --oneui-bg: #0E0F12;
+  --oneui-card: #1C1D21;
+  --oneui-accent: #4C8DFF;
+  --oneui-text-main: #F2F2F4;
+  --oneui-text-sub: #9A9CA3;
+  --oneui-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+/* В тёмной теме статус-бар/часы должны остаться светлыми даже поверх тёмных обоев */
+body.dark .status-bar,
+body.dark .widget-time,
+body.dark .widget-date {
+  color: #F2F2F4;
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+/* Сброс отступов и подключение системного шрифта, похожего на SamsungOne */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* убираем синюю вспышку при тапе на Android */
 }
 
-let state = loadState();
-
-// ============================================================
-//  ОБОИ РАБОЧЕГО СТОЛА
-// ============================================================
-// Каждые обои — CSS-градиент на весь экран (не внешние фото — не нужен хостинг картинок
-// и нет вопросов авторства). Хотите свои фото — замените css на url('ваша_картинка.jpg').
-const WALLPAPERS = [
-  { id: "wp1", name: "Океан",     css: "linear-gradient(160deg, #2E6BE6 0%, #4FC3F7 55%, #B3E5FC 100%)" },
-  { id: "wp2", name: "Закат",     css: "linear-gradient(160deg, #FF7E5F 0%, #FEB47B 55%, #FFD3A5 100%)" },
-  { id: "wp3", name: "Аврора",    css: "linear-gradient(160deg, #0F2027 0%, #2C5364 55%, #00C9A7 100%)" },
-  { id: "wp4", name: "Лаванда",   css: "linear-gradient(160deg, #654EA3 0%, #A084DC 55%, #EAAFC8 100%)" },
-  { id: "wp5", name: "Лес",       css: "linear-gradient(160deg, #134E5E 0%, #2E8B57 55%, #71B280 100%)" },
-  { id: "wp6", name: "Полночь",   css: "linear-gradient(160deg, #0F0F1A 0%, #23234A 55%, #3A3A7A 100%)" },
-  { id: "wp7", name: "Персик",    css: "linear-gradient(160deg, #FFAFBD 0%, #FFC3A0 100%)" },
-  { id: "wp8", name: "Минимал",   css: "linear-gradient(160deg, #E8EAF0 0%, #C9CEDB 100%)" },
-];
-
-function applyWallpaper() {
-  const wp = WALLPAPERS.find((w) => w.id === state.wallpaper) || WALLPAPERS[0];
-  document.getElementById("wallpaper-layer").style.background = wp.css;
-  const lockWp = document.getElementById("lock-wallpaper");
-  if (lockWp) lockWp.style.background = wp.css; // те же обои и на экране блокировки, как на настоящем телефоне
+html, body {
+  height: 100%;
+  overflow: hidden; /* сам рабочий стол не скроллится, скроллятся только окна */
+  background: var(--oneui-bg);
+  font-family: -apple-system, "Segoe UI", Roboto, "Samsung One", sans-serif;
+  color: var(--oneui-text-main);
+  user-select: none; /* как в реальной ОС — текст интерфейса не выделяется */
+  --nav-bar-height: 52px; /* высота нижней системной навигации, используется другими блоками */
 }
 
-// ============================================================
-//  ТЕМА: ДЕНЬ / НОЧЬ / АВТО
-// ============================================================
-function applyTheme() {
-  let isDark;
-  if (state.themeMode === "auto") {
-    const hour = new Date().getHours();
-    isDark = hour >= 20 || hour < 7; // с 20:00 до 7:00 — тёмное время суток
-  } else {
-    isDark = state.themeMode === "night";
-  }
-  document.body.classList.toggle("dark", isDark);
+/* ============ ЭКРАНЫ (desktop / store и т.д.) ============ */
+.screen {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  bottom: var(--nav-bar-height); /* не залезаем под системную навигацию */
+  display: none;
+  flex-direction: column;
+}
+.screen.active { display: flex; }
+
+/* ============ ОБОИ РАБОЧЕГО СТОЛА ============ */
+.wallpaper-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1; /* гарантированно позади любого контента, включая непозиционированный (баг с прошлой версией) */
+  transition: background 0.3s ease;
+}
+/* Часы на цветных обоях лучше читаются с лёгкой тенью на тексте */
+.widget-time, .widget-date, .status-bar {
+  text-shadow: 0 1px 8px rgba(0,0,0,0.15);
+}
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 20px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--oneui-text-main);
 }
 
-// ============================================================
-//  ЧАСЫ И ДАТА НА РАБОЧЕМ СТОЛЕ
-// ============================================================
-const WEEKDAYS = ["Воскресенье","Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"];
-const MONTHS = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
-
-function tickClock() {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, "0");
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const timeStr = `${hh}:${mm}`;
-
-  document.getElementById("status-time").textContent = timeStr;
-  document.getElementById("widget-time").textContent = timeStr;
-  document.getElementById("widget-date").textContent =
-    `${WEEKDAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+/* ============ ВИДЖЕТ ЧАСОВ ============ */
+.clock-widget {
+  text-align: center;
+  padding: 24px 0 12px;
 }
-tickClock();
-setInterval(tickClock, 1000 * 30); // обновляем раз в 30 секунд — часам точность до минуты не нужна чаще
-
-// ============================================================
-//  РЕНДЕР СТРАНИЦ РАБОЧЕГО СТОЛА, ТОЧЕК И ДОКА
-// ============================================================
-const ICONS_PER_PAGE = 8; // 2 ряда по 4 иконки — как обычно помещается на один экран Samsung
-
-function iconButton(app) {
-  const btn = document.createElement("button");
-  btn.className = "app-icon";
-  btn.innerHTML = `
-    <span class="icon-glyph">${iconMarkup(app)}</span>
-    <span class="icon-label">${app.name}</span>
-  `;
-  btn.addEventListener("click", () => openWindow(app.id));
-  return btn;
+.widget-time {
+  font-family: var(--font-display);
+  font-size: 68px;
+  font-weight: 600;
+  letter-spacing: -2px;
+  line-height: 1;
+  /* градиентная заливка текста — премиальный акцент вместо плоского цвета */
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 55%, rgba(255,255,255,0.75) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+body.dark .widget-time {
+  background: linear-gradient(135deg, #ffffff 0%, #cfd6e6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.widget-date {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--oneui-text-sub);
+  margin-top: 4px;
 }
 
-function renderDesktop() {
-  const track = document.getElementById("pages-track");
-  const dots = document.getElementById("page-dots");
-  const dock = document.getElementById("dock");
-  track.innerHTML = "";
-  dots.innerHTML = "";
-  dock.innerHTML = "";
-
-  // Собираем полный список иконок для рабочего стола (без тех, что закреплены в доке)
-  const desktopApps = [];
-  APPS.forEach((app) => {
-    if (app.inDock) {
-      dock.appendChild(iconButton(app));
-    } else {
-      desktopApps.push(app);
-    }
-  });
-  // Плюс приложения, "установленные" из магазина
-  state.installedApps.forEach((appId) => {
-    const shopApp = STORE_CATALOG.find((a) => a.id === appId);
-    if (shopApp) desktopApps.push(shopApp);
-  });
-
-  // Разбиваем на страницы по ICONS_PER_PAGE штук — как реальные экраны Samsung
-  const pageCount = Math.max(1, Math.ceil(desktopApps.length / ICONS_PER_PAGE));
-  for (let p = 0; p < pageCount; p++) {
-    const page = document.createElement("div");
-    page.className = "app-grid";
-    desktopApps.slice(p * ICONS_PER_PAGE, (p + 1) * ICONS_PER_PAGE).forEach((app) => {
-      page.appendChild(iconButton(app));
-    });
-    track.appendChild(page);
-
-    const dot = document.createElement("span");
-    dot.className = "page-dot";
-    dots.appendChild(dot);
-  }
-
-  // Если сохранённая страница больше не существует (удалили приложения) — откатываемся на последнюю
-  if (state.currentPage >= pageCount) state.currentPage = pageCount - 1;
-  goToPage(state.currentPage, false);
+/* ============ ОБЛАСТЬ СВАЙПАЕМЫХ СТРАНИЦ РАБОЧЕГО СТОЛА ============ */
+.pages-viewport {
+  flex: 1;
+  overflow: hidden; /* видна только одна страница за раз, остальные скрыты по бокам */
+  /* мягкое исчезновение контента у верхнего/нижнего края, как в One UI 8.5 */
+  mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 20px), transparent 100%);
 }
 
-function goToPage(index, animate = true) {
-  const track = document.getElementById("pages-track");
-  const pageCount = track.children.length;
-  index = Math.max(0, Math.min(index, pageCount - 1));
-
-  track.style.transition = animate ? "" : "none"; // отключаем анимацию при первой отрисовке
-  track.style.transform = `translateX(-${index * 100}%)`;
-
-  document.querySelectorAll(".page-dot").forEach((dot, i) => {
-    dot.classList.toggle("active", i === index);
-  });
-
-  state.currentPage = index;
-  saveState();
+.pages-track {
+  display: flex;
+  height: 100%;
+  /* сдвигается через JS (translateX) при свайпе или смене страницы */
+  transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-// ---- Свайп влево/вправо между страницами, как на самом Samsung ----
-function setupSwipeGestures() {
-  const viewport = document.getElementById("pages-viewport");
-  let startX = 0;
-  let startY = 0;
-  let dragging = false;
-
-  viewport.addEventListener("touchstart", (e) => {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    dragging = true;
-  }, { passive: true });
-
-  viewport.addEventListener("touchend", (e) => {
-    if (!dragging) return;
-    dragging = false;
-
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
-
-    // игнорируем в основном вертикальные жесты (скролл) — свайп страницы должен быть горизонтальным
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
-
-    tg.HapticFeedback.impactOccurred("light"); // тактильный отклик, как при смене экрана на телефоне
-
-    if (dx < 0) {
-      goToPage(state.currentPage + 1); // свайп влево — следующая страница
-    } else {
-      goToPage(state.currentPage - 1); // свайп вправо — предыдущая страница
-    }
-  }, { passive: true });
+.app-grid {
+  flex: 0 0 100%;      /* каждая страница занимает ровно ширину экрана */
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4 иконки в ряд, как на смартфоне */
+  grid-auto-rows: min-content;
+  gap: 20px 12px;
+  padding: 24px 20px 16px;
+  align-content: start;
 }
 
-// ============================================================
-//  ОТКРЫТИЕ / ЗАКРЫТИЕ ОКОН ПРИЛОЖЕНИЙ
-// ============================================================
-function findAppById(id) {
-  return APPS.find((a) => a.id === id) || STORE_CATALOG.find((a) => a.id === id);
+/* ============ ТОЧКИ-ИНДИКАТОРЫ СТРАНИЦ ============ */
+.page-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 0 10px;
+}
+.page-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #C7C9CD;
+  transition: background 0.2s, transform 0.2s;
+}
+.page-dot.active {
+  background: var(--oneui-accent);
+  transform: scale(1.3);
 }
 
-function openWindow(appId) {
-  const app = findAppById(appId);
-  if (!app) return;
-
-  // сообщаем Telegram лёгкой тактильной отдачей, что произошло действие
-  tg.HapticFeedback.impactOccurred("light");
-
-  const container = document.getElementById("windows-container");
-
-  // подложка позади окна — своя для каждого открытого окна, чтобы уходила вместе с ним при закрытии
-  const backdrop = document.createElement("div");
-  backdrop.className = "window-backdrop";
-  container.appendChild(backdrop);
-  requestAnimationFrame(() => backdrop.classList.add("visible")); // в следующий кадр — чтобы transition сработал
-
-  const template = document.getElementById("window-template");
-  const node = template.content.firstElementChild.cloneNode(true);
-
-  node.dataset.appId = appId;
-  node.querySelector(".window-title").textContent = app.name;
-  node.querySelector(".window-close").addEventListener("click", () => closeWindow(node));
-
-  const body = node.querySelector(".window-body");
-  app.render(body); // каждое приложение само наполняет своё окно содержимым
-
-  node._backdrop = backdrop; // запоминаем связку окно↔подложка, чтобы убрать обе разом при закрытии
-  container.appendChild(node);
+.app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  background: none;
+  border: none;
 }
 
-function closeWindow(node) {
-  // проигрываем анимацию закрытия (scale-down + fade) и только ПОСЛЕ неё убираем элемент из DOM —
-  // без этого получится не анимация, а мгновенное исчезновение
-  node.classList.add("closing");
-  node._backdrop?.classList.remove("visible");
-
-  const cleanup = () => {
-    node.remove();
-    node._backdrop?.remove();
-  };
-  node.addEventListener("animationend", cleanup, { once: true });
-  setTimeout(cleanup, 350); // подстраховка на случай, если animationend почему-то не сработает
+.app-icon .icon-glyph {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  /* лёгкая стеклянность поверх обоев вместо сплошной заливки — иконки не перекрывают картинку обоев целиком */
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: var(--oneui-radius-md);
+  box-shadow: var(--oneui-shadow), inset 0 1px 0 rgba(255,255,255,0.6);
+  transition: transform 0.15s ease; /* лёгкий "пружинистый" отклик на тап */
+}
+body.dark .app-icon .icon-glyph {
+  background: rgba(28, 29, 33, 0.75); /* в тёмной теме стекло тоже тёмное */
+}
+.app-icon:active .icon-glyph {
+  transform: scale(0.92); /* имитация нажатия, как в Android */
 }
 
-// ============================================================
-//  СИСТЕМНАЯ НАВИГАЦИЯ: ДОМОЙ / НАЗАД / ПОСЛЕДНИЕ (recents)
-// ============================================================
-function getOpenWindows() {
-  return Array.from(document.querySelectorAll("#windows-container .app-window:not(.closing)"));
+.app-icon .icon-label {
+  font-size: 12px;
+  color: var(--oneui-text-main);
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.12);
 }
 
-function goHome() {
-  // кнопка "Домой" — закрывает все окна (с той же анимацией) и прячет обзор последних приложений
-  closeRecents();
-  getOpenWindows().forEach((w) => closeWindow(w));
+/* ============ ДОК ВНИЗУ ЭКРАНА (плавающий, как в One UI 8.5) ============ */
+.dock {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin: 0 16px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px); /* эффект матового стекла, усиленный в 8.5 */
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 999px; /* полностью капсульная форма — доки в 8.5 "плавают" над контентом */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+.dock .app-icon .icon-glyph {
+  width: 46px;
+  height: 46px;
+  box-shadow: none;
+  background: transparent;
 }
 
-function goBack() {
-  // кнопка "Назад" — сначала прячет recents, если он открыт, иначе закрывает верхнее окно
-  const recents = document.getElementById("recents-screen");
-  if (recents.classList.contains("active")) {
-    closeRecents();
-    return;
-  }
-  const windows = getOpenWindows();
-  if (windows.length > 0) {
-    closeWindow(windows[windows.length - 1]); // закрываем последнее открытое (самое верхнее) окно
-  }
+/* ============ ОКНА ПРИЛОЖЕНИЙ ============ */
+#windows-container {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  bottom: var(--nav-bar-height);
+  pointer-events: none; /* контейнер прозрачен для тапов, пока окон нет */
+  z-index: 20; /* выше элементов рабочего стола (у них z-index:1) — иначе часы/док просвечивают поверх окна */
 }
 
-function renderRecents() {
-  const grid = document.getElementById("recents-grid");
-  const empty = document.getElementById("recents-empty");
-  grid.innerHTML = "";
+/* Тёмная размытая подложка позади открытого окна — глубина и фокус на контенте, как в iOS */
+.window-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.18);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: auto;
+  transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.window-backdrop.visible { opacity: 1; }
 
-  const windows = getOpenWindows();
-  empty.style.display = windows.length ? "none" : "block";
-
-  windows.forEach((win) => {
-    const app = findAppById(win.dataset.appId);
-    if (!app) return;
-
-    const card = document.createElement("div");
-    card.className = "recents-card";
-    card.innerHTML = `
-      <button class="recents-card-close">✕</button>
-      <span class="icon-glyph">${iconMarkup(app)}</span>
-      <span>${app.name}</span>
-    `;
-
-    // тап по карточке — открыть это приложение и закрыть обзор
-    card.addEventListener("click", () => {
-      closeRecents();
-      win.scrollIntoView?.();
-    });
-    // отдельная кнопка "✕" — закрыть именно это приложение, не открывая его
-    card.querySelector(".recents-card-close").addEventListener("click", (e) => {
-      e.stopPropagation();
-      win.remove();
-      renderRecents(); // перерисовываем список после закрытия карточки
-    });
-
-    grid.appendChild(card);
-  });
+.app-window {
+  position: absolute;
+  inset: 6% 4%;
+  display: flex;
+  flex-direction: column;
+  background: var(--oneui-card);
+  border-radius: var(--oneui-radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  pointer-events: auto; /* само окно снова реагирует на тапы */
+  /* пружинистая кривая с лёгким перелётом — фирменное ощущение "живости" iOS-анимаций */
+  transform: scale(0.86) translateY(24px);
+  opacity: 0;
+  animation: window-open 0.42s cubic-bezier(0.34, 1.42, 0.55, 1) forwards;
+}
+.app-window.closing {
+  animation: window-close 0.28s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  pointer-events: none;
 }
 
-function openRecents() {
-  renderRecents();
-  document.getElementById("recents-screen").classList.add("active");
+@keyframes window-open {
+  0%   { opacity: 0; transform: scale(0.86) translateY(24px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes window-close {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.9) translateY(16px); }
 }
 
-function closeRecents() {
-  document.getElementById("recents-screen").classList.remove("active");
+.window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #EEEFF1;
+  font-weight: 600;
 }
 
-function setupNavBar() {
-  const indicator = document.getElementById("home-indicator");
-  document.getElementById("recents-close").addEventListener("click", closeRecents);
-
-  let pressTimer = null;
-  let longPressFired = false;
-
-  indicator.addEventListener("touchstart", (e) => {
-    e.preventDefault(); // не даём странице скроллиться/выделяться при долгом тапе
-    longPressFired = false;
-    pressTimer = setTimeout(() => {
-      longPressFired = true;
-      tg.HapticFeedback.impactOccurred("medium");
-      openRecents(); // долгий тап по полоске — как свайп-вверх-и-пауза на iPhone, открывает обзор приложений
-    }, 450);
-  }, { passive: false });
-
-  indicator.addEventListener("touchend", () => {
-    clearTimeout(pressTimer);
-    if (!longPressFired) {
-      tg.HapticFeedback.impactOccurred("light");
-      goHome(); // короткий тап — просто домой
-    }
-  });
-
-  // на десктопе (для тестов в обычном браузере без touch) — обычный клик тоже уводит домой
-  indicator.addEventListener("click", () => { if (!longPressFired) goHome(); });
+.window-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #F1F2F4;
+  color: var(--oneui-text-sub);
+  font-size: 14px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.window-close:active {
+  transform: scale(0.85);
+  background: #E4E6E9;
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: НАСТРОЙКИ
-// ============================================================
-function renderSettingsApp(container) {
-  container.innerHTML = `
-    <p class="store-category">Тема</p>
-    <div class="theme-segment" id="theme-segment">
-      <button data-mode="day">☀️ День</button>
-      <button data-mode="night">🌙 Ночь</button>
-      <button data-mode="auto">🕒 Авто</button>
-    </div>
-
-    <p class="store-category">Обои</p>
-    <div class="wallpaper-grid" id="wallpaper-grid"></div>
-
-    <p class="store-category">Об устройстве</p>
-    <div class="settings-row">
-      <span>Установлено приложений</span>
-      <span>${state.installedApps.length}</span>
-    </div>
-    <div class="settings-row">
-      <span>Пользователь Telegram</span>
-      <span>${tg.initDataUnsafe?.user?.first_name || "Гость"}</span>
-    </div>
-  `;
-
-  // ---- переключатель темы ----
-  const segment = container.querySelector("#theme-segment");
-  segment.querySelectorAll("button").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.mode === state.themeMode);
-    btn.addEventListener("click", () => {
-      state.themeMode = btn.dataset.mode;
-      saveState();
-      applyTheme();
-      segment.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
-    });
-  });
-
-  // ---- сетка обоев ----
-  const grid = container.querySelector("#wallpaper-grid");
-  WALLPAPERS.forEach((wp) => {
-    const thumb = document.createElement("button");
-    thumb.className = "wallpaper-thumb" + (wp.id === state.wallpaper ? " active" : "");
-    thumb.style.background = wp.css;
-    thumb.title = wp.name;
-    thumb.addEventListener("click", () => {
-      state.wallpaper = wp.id;
-      saveState();
-      applyWallpaper();
-      grid.querySelectorAll(".wallpaper-thumb").forEach((t) => t.classList.remove("active"));
-      thumb.classList.add("active");
-    });
-    grid.appendChild(thumb);
-  });
+.window-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
 }
 
-// Примечание: applyTheme() теперь определена выше — она также умеет учитывать "авто" режим.
-
-// ============================================================
-//  ПРИЛОЖЕНИЕ: МАГАЗИН
-// ============================================================
-// Каталог "загружаемых" утилит. В реальном проекте эти данные стоит
-// получать с бэкенда (см. bot.py + отдельный API), здесь — заглушка.
-// Каждая запись — как карточка реального Google Play: рейтинг, число оценок, размер файла.
-// Реальные иконки/данные из настоящего Play Маркета получить нельзя — у Google нет публичного
-// API для стороннего каталога, поэтому здесь пример-заглушка в том же визуальном стиле.
-//
-// У большинства приложений ниже render — это renderPlaceholderApp (заглушка "скоро здесь будет функционал").
-// Замените поле render на свою функцию, когда будете подключать реальную логику —
-// сигнатура та же, что и у остальных: function(container) { ... }.
-function renderPlaceholderApp(container) {
-  container.innerHTML = `<p style="color:var(--oneui-text-sub);font-size:14px;">
-    Заглушка приложения. Подключите свою функцию рендера в script.js (см. поле "render" в STORE_CATALOG).
-  </p>`;
+/* ============ НИЖНЯЯ НАВИГАЦИЯ — ОРИГИНАЛЬНЫЕ 3 КНОПКИ SAMSUNG ONE UI ============ */
+.nav-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: var(--nav-bar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 50; /* поверх окон и рабочего стола */
+}
+.nav-btn {
+  border: none;
+  background: none;
+  width: 56px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.nav-btn:active {
+  opacity: 0.45;
+  transform: scale(0.88);
 }
 
-// Компактный конструктор записи каталога — чтобы не дублировать одинаковые поля вручную
-function shopApp(id, name, icon, category, rating, size, render) {
-  return { id, name, icon, category, desc: category, rating, votes: `${(1 + Math.random() * 40).toFixed(1)}К`, size, render: render || renderPlaceholderApp };
+/* Форма-иконка общая база */
+.nav-icon {
+  display: block;
+  color: var(--oneui-text-main);
+  opacity: 0.85;
 }
 
-const STORE_CATALOG = [
-  // ---- Инструменты (с рабочей логикой-примером) ----
-  shopApp("calc", "Калькулятор", "🧮", "Инструменты", 4.6, "1.2 МБ", renderCalcApp),
-  shopApp("weather", "Погода", "☀️", "Инструменты", 4.4, "3.4 МБ", renderWeatherApp),
-  shopApp("flashlight", "Фонарик", "🔦", "Инструменты", 4.2, "0.8 МБ"),
-  shopApp("compass", "Компас", "🧭", "Инструменты", 4.0, "1.5 МБ"),
-  shopApp("converter", "Конвертер единиц", "📐", "Инструменты", 4.3, "2.1 МБ"),
-  shopApp("scanner", "Сканер документов", "📄", "Инструменты", 4.5, "12 МБ"),
-  shopApp("recorder", "Диктофон", "🎙️", "Инструменты", 4.1, "3.9 МБ"),
-  shopApp("qr", "QR-сканер", "🔳", "Инструменты", 4.4, "4.2 МБ"),
-
-  // ---- Продуктивность ----
-  shopApp("cal-app", "Календарь Pro", "📅", "Продуктивность", 4.5, "9 МБ"),
-  shopApp("todo", "Задачи", "✅", "Продуктивность", 4.6, "6 МБ"),
-  shopApp("cloud", "Облако", "☁️", "Продуктивность", 4.3, "15 МБ"),
-  shopApp("mail", "Почта", "📧", "Продуктивность", 4.2, "22 МБ"),
-  shopApp("office", "Офисный пакет", "📊", "Продуктивность", 4.4, "45 МБ"),
-  shopApp("translator", "Переводчик", "🌍", "Продуктивность", 4.5, "18 МБ"),
-
-  // ---- Соцсети и общение ----
-  shopApp("chat", "Мессенджер", "💬", "Общение", 4.3, "28 МБ"),
-  shopApp("video", "Видеозвонки", "📹", "Общение", 4.2, "31 МБ"),
-  shopApp("social", "Лента новостей", "📰", "Общение", 4.0, "26 МБ"),
-
-  // ---- Развлечения ----
-  shopApp("music", "Музыка", "🎵", "Развлечения", 4.6, "19 МБ"),
-  shopApp("video-player", "Видеоплеер", "🎬", "Развлечения", 4.4, "24 МБ"),
-  shopApp("games", "Игровой центр", "🎮", "Развлечения", 4.5, "40 МБ"),
-  shopApp("podcast", "Подкасты", "🎧", "Развлечения", 4.3, "14 МБ"),
-  shopApp("radio", "Радио", "📻", "Развлечения", 4.1, "8 МБ"),
-
-  // ---- Здоровье и стиль жизни ----
-  shopApp("health", "Здоровье", "❤️", "Здоровье", 4.4, "16 МБ"),
-  shopApp("fitness", "Фитнес-трекер", "🏃", "Здоровье", 4.3, "20 МБ"),
-  shopApp("sleep", "Сон", "😴", "Здоровье", 4.2, "9 МБ"),
-
-  // ---- Фото и графика ----
-  shopApp("gallery", "Галерея Плюс", "🖼️", "Фото", 4.5, "17 МБ"),
-  shopApp("editor", "Фоторедактор", "🎨", "Фото", 4.4, "33 МБ"),
-  shopApp("camera-pro", "Камера Pro", "📷", "Фото", 4.6, "27 МБ"),
-];
-
-function starRating(rating) {
-  // рисует рейтинг звёздочкой + числом, как в карточке Play Маркета
-  return `<span class="stars">★</span> ${rating.toFixed(1)}`;
+/* Квадрат — "Последние приложения", полый контур, слегка скруглённый как у Samsung */
+.nav-icon-square {
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-radius: 4px;
 }
 
-function renderStoreApp(container) {
-  container.innerHTML = `
-    <div class="store-search">🔍 <span>Поиск игр и приложений</span></div>
-    <div class="store-tabs">
-      <span class="store-tab active">Для вас</span>
-      <span class="store-tab">Топ чарты</span>
-      <span class="store-tab">Категории</span>
-    </div>
-    <div id="store-list"></div>
-  `;
-
-  const list = container.querySelector("#store-list");
-
-  // Группируем каталог по полю category — так длинный список не превращается в стену карточек
-  const categories = [...new Set(STORE_CATALOG.map((a) => a.category))];
-
-  categories.forEach((category) => {
-    const heading = document.createElement("p");
-    heading.className = "store-category";
-    heading.textContent = category;
-    list.appendChild(heading);
-
-    STORE_CATALOG.filter((a) => a.category === category).forEach((item) => {
-      const installed = state.installedApps.includes(item.id);
-
-      const row = document.createElement("div");
-      row.className = "store-item";
-      row.innerHTML = `
-        <div class="icon-glyph">${iconMarkup(item)}</div>
-        <div class="store-item-info">
-          <div class="store-item-title">${item.name}</div>
-          <div class="store-item-meta">${starRating(item.rating)} · ${item.votes} отзывов · ${item.size}</div>
-        </div>
-        <button class="btn-install ${installed ? "installed" : ""}">
-          ${installed ? "Открыть" : "Установить"}
-        </button>
-      `;
-
-      row.querySelector(".btn-install").addEventListener("click", () => {
-        if (state.installedApps.includes(item.id)) {
-          openWindow(item.id); // уже установлено — просто открываем
-        } else {
-          state.installedApps.push(item.id); // "устанавливаем" — сохраняем id в state
-          saveState();
-          renderDesktop();     // обновляем сетку иконок на рабочем столе
-          renderStoreApp(container); // перерисовываем список магазина (кнопка станет "Открыть")
-        }
-      });
-
-      list.appendChild(row);
-    });
-  });
+/* Круг — "Домой", полый контур */
+.nav-icon-circle {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid currentColor;
+  border-radius: 50%;
 }
 
-// ---- Настоящий рабочий калькулятор (не заглушка) ----
-function renderCalcApp(container) {
-  let expr = ""; // строка текущего выражения, например "12+7"
-
-  container.innerHTML = `
-    <div id="calc-display" style="background:var(--oneui-bg);border-radius:16px;padding:20px;
-      text-align:right;font-size:32px;font-weight:300;margin-bottom:12px;min-height:44px;word-break:break-all;">0</div>
-    <div id="calc-keys" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
-  `;
-
-  const display = container.querySelector("#calc-display");
-  const keys = container.querySelector("#calc-keys");
-
-  // Раскладка клавиш калькулятора: значение и что при нажатии делать
-  const buttons = [
-    "C", "⌫", "%", "÷",
-    "7", "8", "9", "×",
-    "4", "5", "6", "−",
-    "1", "2", "3", "+",
-    "0", ".", "=",
-  ];
-
-  buttons.forEach((label) => {
-    const btn = document.createElement("button");
-    btn.textContent = label;
-    // "0" делаем на всю ширину двух ячеек, остальное — обычные квадратные кнопки
-    btn.style.cssText = `
-      padding:16px 0; border:none; border-radius:14px; font-size:18px; font-weight:600;
-      background:${"C⌫%÷×−+=".includes(label) ? "var(--oneui-accent)" : "var(--oneui-card)"};
-      color:${"C⌫%÷×−+=".includes(label) ? "#fff" : "var(--oneui-text-main)"};
-      box-shadow: var(--oneui-shadow);
-      ${label === "0" ? "grid-column: span 2;" : ""}
-    `;
-
-    btn.addEventListener("click", () => {
-      if (label === "C") {
-        expr = ""; // сброс
-      } else if (label === "⌫") {
-        expr = expr.slice(0, -1); // стереть последний символ
-      } else if (label === "=") {
-        try {
-          // переводим удобные для глаза символы в JS-операторы перед вычислением
-          const jsExpr = expr.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-").replace(/%/g, "/100");
-          // eslint-disable-next-line no-new-func — безопасно: строка состоит только из цифр/операторов, набранных кнопками
-          const result = Function(`"use strict"; return (${jsExpr})`)();
-          expr = String(Number.isFinite(result) ? +result.toFixed(8) : "Ошибка");
-        } catch (e) {
-          expr = "Ошибка";
-        }
-      } else {
-        expr += label; // цифра или знак операции — просто дописываем
-      }
-      display.textContent = expr || "0";
-    });
-
-    keys.appendChild(btn);
-  });
+/* Треугольник — "Назад", смотрит влево (классическая форма Samsung, не обычная стрелка) */
+.nav-icon-triangle {
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 13px solid currentColor;
+  opacity: 0.85;
 }
 
-// ---- Пример: заглушка приложения "Погода" ----
-function renderWeatherApp(container) {
-  container.innerHTML = `<p>☀️ +24°C — данные-заглушка. Подключите реальный API погоды на бэкенде.</p>`;
+/* ============ ЭКРАН "ПОСЛЕДНИЕ ПРИЛОЖЕНИЯ" (recents) ============ */
+.recents-screen {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  bottom: var(--nav-bar-height);
+  display: none; /* показывается через JS добавлением класса .active */
+  flex-direction: column;
+  padding: 20px;
+  overflow-y: auto;
+  background: var(--oneui-bg);
+  z-index: 40;
+}
+.recents-screen.active { display: flex; }
+
+.recents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.recents-title { font-weight: 700; font-size: 18px; }
+.recents-close {
+  border: none;
+  background: var(--oneui-card);
+  box-shadow: var(--oneui-shadow);
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  color: var(--oneui-text-sub);
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: ЗАМЕТКИ (пример работы с localStorage)
-// ============================================================
-function renderNotesApp(container) {
-  const notes = localStorage.getItem("oneui_notes") || "";
-  container.innerHTML = `
-    <textarea id="notes-area" style="width:100%;height:200px;border:none;
-      background:var(--oneui-bg);border-radius:16px;padding:12px;font-size:14px;"
-      placeholder="Пишите здесь...">${notes}</textarea>
-  `;
-  container.querySelector("#notes-area").addEventListener("input", (e) => {
-    localStorage.setItem("oneui_notes", e.target.value); // сохраняем при каждом вводе
-  });
+.recents-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.recents-card {
+  background: var(--oneui-card);
+  border-radius: var(--oneui-radius-md);
+  box-shadow: var(--oneui-shadow);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.recents-card .icon-glyph {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.recents-card-close {
+  align-self: flex-end;
+  border: none;
+  background: #F1F2F4;
+  color: var(--oneui-text-sub);
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+}
+.recents-empty {
+  margin: auto;
+  color: var(--oneui-text-sub);
+  font-size: 14px;
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: О ТЕЛЕФОНЕ
-// ============================================================
-function renderDeviceInfoApp(container) {
-  // Реальные данные, доступные браузеру — без доступа к настоящему железу телефона,
-  // но это честная информация о самом устройстве/браузере, а не выдумка
-  const ua = navigator.userAgent;
-  const platform = navigator.userAgentData?.platform || navigator.platform || "неизвестно";
-  const lang = navigator.language || "неизвестно";
-  const screenRes = `${window.screen.width}×${window.screen.height} @${window.devicePixelRatio || 1}x`;
-  const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} ядер` : "неизвестно";
-  const memory = navigator.deviceMemory ? `${navigator.deviceMemory} ГБ` : "неизвестно";
-  const connection = navigator.connection?.effectiveType?.toUpperCase() || "неизвестно";
-  const user = tg.initDataUnsafe?.user;
-
-  container.innerHTML = `
-    <p class="store-category">Устройство</p>
-    <div class="info-row"><span>Платформа</span><span>${platform}</span></div>
-    <div class="info-row"><span>Разрешение экрана</span><span>${screenRes}</span></div>
-    <div class="info-row"><span>Процессор</span><span>${cores}</span></div>
-    <div class="info-row"><span>Память (приблизительно)</span><span>${memory}</span></div>
-    <div class="info-row"><span>Сеть</span><span>${connection}</span></div>
-    <div class="info-row"><span>Язык системы</span><span>${lang}</span></div>
-
-    <p class="store-category">Telegram</p>
-    <div class="info-row"><span>Пользователь</span><span>${user ? (user.first_name + (user.last_name ? " " + user.last_name : "")) : "Гость"}</span></div>
-    <div class="info-row"><span>Username</span><span>${user?.username ? "@" + user.username : "—"}</span></div>
-    <div class="info-row"><span>Версия Telegram WebApp</span><span>${tg.version || "неизвестно"}</span></div>
-    <div class="info-row"><span>Платформа Telegram</span><span>${tg.platform || "неизвестно"}</span></div>
-
-    <p class="store-category">Браузер</p>
-    <div class="info-row" style="display:block;">
-      <span style="display:block;margin-bottom:4px;">User-Agent</span>
-      <span style="display:block;text-align:left;font-weight:400;font-size:12px;word-break:break-all;color:var(--oneui-text-sub);">${ua}</span>
-    </div>
-  `;
+/* ============ ЭКРАН БЛОКИРОВКИ ============ */
+.lock-screen {
+  background: #000;
+  color: #fff;
+  align-items: center;
+  z-index: 100; /* поверх абсолютно всего, пока не разблокирован */
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.38s ease;
+}
+/* класс добавляется в момент разблокировки — экран плавно уезжает вверх и тает, открывая рабочий стол под собой */
+.lock-screen.unlocking {
+  transform: translateY(-100%);
+  opacity: 0.4;
+}
+.lock-content {
+  margin: auto;
+  text-align: center;
+  padding: 0 24px;
+}
+.lock-time {
+  font-family: var(--font-display);
+  font-size: 100px;
+  font-weight: 200;
+  letter-spacing: -4px;
+  line-height: 1;
+  background: linear-gradient(160deg, #ffffff 0%, #ffffff 60%, rgba(255,255,255,0.7) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  /* мягкое свечение под цифрами — придаёт атмосферности вместо плоского текста */
+  filter: drop-shadow(0 4px 30px rgba(0,0,0,0.35));
+}
+.lock-date {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-top: 12px;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+.lock-notifications {
+  margin-top: 28px;
+}
+.lock-unlock {
+  position: absolute;
+  left: 0; right: 0; bottom: 64px;
+  border: none;
+  background: none;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.8;
+  animation: lock-bounce 2.2s ease-in-out infinite; /* лёгкое покачивание стрелки-подсказки */
+}
+.lock-unlock-arrow { font-size: 16px; }
+.lock-unlock-text { font-size: 13px; font-weight: 500; letter-spacing: 0.2px; }
+@keyframes lock-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  50% { transform: translateY(-10px); opacity: 0.9; }
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: МОИ ФАЙЛЫ
-// ============================================================
-function renderMyFilesApp(container) {
-  // Пример структуры "файлов" — замените на реальные данные с вашего бэкенда,
-  // когда будете подключать хранилище файлов пользователя
-  const folders = [
-    { icon: "📥", name: "Загрузки", meta: "12 файлов · 340 МБ" },
-    { icon: "🖼️", name: "Изображения", meta: "58 файлов · 1.1 ГБ" },
-    { icon: "🎵", name: "Музыка", meta: "24 файла · 210 МБ" },
-    { icon: "📄", name: "Документы", meta: "9 файлов · 40 МБ" },
-    { icon: "🎬", name: "Видео", meta: "6 файлов · 780 МБ" },
-    { icon: "🖌️", name: "Обои", meta: `${WALLPAPERS.length} файлов · 4 МБ` },
-  ];
-
-  container.innerHTML = "";
-  folders.forEach((f) => {
-    const row = document.createElement("div");
-    row.className = "folder-row";
-    row.innerHTML = `
-      <div class="icon-glyph">${f.icon}</div>
-      <div>
-        <div class="folder-row-title">${f.name}</div>
-        <div class="folder-row-meta">${f.meta}</div>
-      </div>
-    `;
-    // тап пока просто заглушка — подключите открытие реального списка файлов на свой вкус
-    row.addEventListener("click", () => alert(`Открыть папку "${f.name}" — подключите свою логику`));
-    container.appendChild(row);
-  });
+/* ============ ШТОРКА БЫСТРЫХ НАСТРОЕК ============ */
+.status-bar {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.quick-panel {
+  max-height: 0; /* спрятана по умолчанию, раскрывается через JS-класс .open */
+  overflow: hidden;
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 0 0 var(--oneui-radius-lg) var(--oneui-radius-lg);
+  transition: max-height 0.3s ease, padding 0.3s ease;
+  padding: 0 16px;
+}
+.quick-panel.open {
+  max-height: 220px;
+  padding: 14px 16px;
+}
+.quick-toggles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.quick-toggle {
+  border: none;
+  border-radius: 16px;
+  background: var(--oneui-bg);
+  padding: 12px 0;
+  font-size: 20px;
+  color: var(--oneui-text-sub);
+}
+.quick-toggle.active {
+  background: var(--oneui-accent);
+  color: #fff;
+}
+.quick-brightness {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.quick-brightness input[type="range"] {
+  flex: 1;
+  accent-color: var(--oneui-accent);
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: МИНИ-БРАУЗЕР (используется для Chrome и Google)
-// ============================================================
-function renderBrowserApp(container, prefillUrl) {
-  // Встроить чужой сайт через <iframe> почти всегда не получится — большинство сайтов
-  // (включая сам Google) запрещают встраивание себя в чужие страницы (заголовок X-Frame-Options).
-  // Поэтому переход происходит через tg.openLink() — Telegram открывает системный браузер поверх мини-приложения.
-  container.innerHTML = `
-    <div class="browser-bar">
-      <input id="browser-url" type="text" value="${prefillUrl}" placeholder="Введите адрес или запрос" />
-      <button id="browser-go">Перейти</button>
-    </div>
-    <p class="browser-hint">
-      Большинство сайтов запрещают открываться внутри чужих страниц, поэтому ссылка откроется
-      в системном браузере поверх мини-приложения — это ограничение самих сайтов, а не бота.
-    </p>
-  `;
-
-  container.querySelector("#browser-go").addEventListener("click", () => {
-    let value = container.querySelector("#browser-url").value.trim();
-    if (!value) return;
-
-    // если это похоже на поисковый запрос, а не адрес сайта — оборачиваем в поиск Google
-    const looksLikeUrl = /^https?:\/\//i.test(value) || value.includes(".");
-    const url = looksLikeUrl
-      ? (value.startsWith("http") ? value : `https://${value}`)
-      : `https://www.google.com/search?q=${encodeURIComponent(value)}`;
-
-    tg.openLink(url); // именно этот метод SDK открывает внешние ссылки из Mini App
-  });
+/* ============ ПОИСКОВАЯ СТРОКА НА РАБОЧЕМ СТОЛЕ ============ */
+.desktop-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 10px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--oneui-text-sub);
+  font-size: 13px;
+  box-shadow: var(--oneui-shadow);
+}
+body.dark .desktop-search {
+  background: rgba(28,29,33,0.75);
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: ТЕЛЕФОН (реальный звонок через системный диалер)
-// ============================================================
-function renderPhoneApp(container) {
-  container.innerHTML = `
-    <div id="phone-display" style="background:var(--oneui-bg);border-radius:16px;padding:18px;
-      text-align:right;font-size:26px;margin-bottom:12px;min-height:36px;">Введите номер</div>
-    <div id="phone-keys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
-    <button id="phone-call" style="width:100%;border:none;background:#2E9E5B;color:#fff;
-      padding:14px;border-radius:999px;font-size:15px;font-weight:700;">📞 Позвонить</button>
-  `;
-  let number = "";
-  const display = container.querySelector("#phone-display");
-  const keys = container.querySelector("#phone-keys");
+/* ============ МАГАЗИН — ВИЗУАЛЬНЫЙ СТИЛЬ GOOGLE PLAY ============ */
 
-  "123456789*0#".split("").forEach((d) => {
-    const btn = document.createElement("button");
-    btn.textContent = d;
-    btn.style.cssText = "padding:16px 0;border:none;border-radius:14px;font-size:20px;background:var(--oneui-card);box-shadow:var(--oneui-shadow);color:var(--oneui-text-main);";
-    btn.addEventListener("click", () => {
-      number += d;
-      display.textContent = number;
-    });
-    keys.appendChild(btn);
-  });
-
-  // tel: — открывает НАСТОЯЩИЙ звонилку телефона с этим номером, это реальная функция, а не заглушка
-  container.querySelector("#phone-call").addEventListener("click", () => {
-    if (!number) return;
-    tg.openLink?.(`tel:${number}`) || (window.location.href = `tel:${number}`);
-  });
+/* Строка поиска сверху, как в Play Маркете */
+.store-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--oneui-bg);
+  border-radius: 999px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  color: var(--oneui-text-sub);
+  font-size: 14px;
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: СООБЩЕНИЯ (реальная SMS через системное приложение)
-// ============================================================
-function renderMessagesApp(container) {
-  container.innerHTML = `
-    <input id="sms-to" type="text" placeholder="Номер получателя" style="width:100%;border:none;
-      background:var(--oneui-bg);border-radius:12px;padding:12px;margin-bottom:8px;font-size:14px;color:var(--oneui-text-main);" />
-    <textarea id="sms-text" placeholder="Текст сообщения" style="width:100%;height:100px;border:none;
-      background:var(--oneui-bg);border-radius:12px;padding:12px;font-size:14px;color:var(--oneui-text-main);"></textarea>
-    <button id="sms-send" style="width:100%;margin-top:10px;border:none;background:var(--oneui-accent);
-      color:#fff;padding:14px;border-radius:999px;font-weight:700;">Открыть в Сообщениях</button>
-  `;
-  container.querySelector("#sms-send").addEventListener("click", () => {
-    const to = container.querySelector("#sms-to").value.trim();
-    const body = encodeURIComponent(container.querySelector("#sms-text").value);
-    // sms: — тоже реальная ссылка, открывает настоящее приложение сообщений с заполненным текстом
-    window.location.href = `sms:${to}?body=${body}`;
-  });
+/* Горизонтальные вкладки-чипы ("Топ чарты", "Для вас" и т.п.) */
+.store-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+}
+.store-tab {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--oneui-bg);
+  color: var(--oneui-text-sub);
+}
+.store-tab.active {
+  background: var(--oneui-accent);
+  color: #fff;
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: КАМЕРА (настоящий доступ к камере устройства)
-// ============================================================
-function renderCameraApp(container) {
-  container.innerHTML = `
-    <video id="camera-preview" autoplay playsinline style="width:100%;border-radius:16px;background:#000;"></video>
-    <p id="camera-error" style="color:#E5484D;font-size:13px;margin-top:8px;"></p>
-    <button id="camera-shot" style="width:100%;margin-top:12px;border:none;background:var(--oneui-accent);
-      color:#fff;padding:14px;border-radius:999px;font-weight:700;">📸 Снять фото</button>
-  `;
-  const video = container.querySelector("#camera-preview");
-  const errorBox = container.querySelector("#camera-error");
+/* Карточка приложения — крупная иконка, рейтинг звёздами, зелёная кнопка Play Store */
+.store-category {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--oneui-text-sub);
+  margin: 18px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.store-category:first-child { margin-top: 4px; }
 
-  // Запрашиваем доступ к настоящей камере телефона — это реальный API браузера, не имитация
-  navigator.mediaDevices?.getUserMedia({ video: { facingMode: "environment" } })
-    .then((stream) => { video.srcObject = stream; })
-    .catch(() => {
-      errorBox.textContent = "Нет доступа к камере (разрешите доступ в браузере) или камера недоступна в этом окружении.";
-    });
+.store-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #F1F2F4;
+}
+.store-item .icon-glyph {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--oneui-radius-md);
+  background: linear-gradient(160deg, #FFFFFF 0%, var(--oneui-bg) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+}
+.store-item-info { flex: 1; min-width: 0; }
+.store-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.store-item-desc {
+  font-size: 12px;
+  color: var(--oneui-text-sub);
+  margin-top: 2px;
+}
+.store-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--oneui-text-sub);
+  margin-top: 3px;
+}
+.store-item-meta .stars { color: #FFA000; } /* жёлтый цвет рейтинга, как в Play Маркете */
 
-  container.querySelector("#camera-shot").addEventListener("click", () => {
-    if (!video.srcObject) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    const photoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
-
-    // сохраняем снимок в "Галерею" через localStorage — реально сохраняется между сессиями
-    const gallery = JSON.parse(localStorage.getItem("oneui_gallery") || "[]");
-    gallery.unshift(photoDataUrl);
-    localStorage.setItem("oneui_gallery", JSON.stringify(gallery.slice(0, 30))); // храним последние 30 фото
-    tg.HapticFeedback.notificationOccurred("success");
-  });
+.btn-install {
+  border: none;
+  background: var(--play-green); /* зелёная кнопка — фирменный цвет Play Маркета */
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.btn-install.installed {
+  background: transparent;
+  color: var(--oneui-text-sub);
+  border: 1.5px solid #D8DADD;
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: ГАЛЕРЕЯ (показывает то, что реально снято Камерой)
-// ============================================================
-function renderGalleryApp(container) {
-  const photos = JSON.parse(localStorage.getItem("oneui_gallery") || "[]");
-  if (!photos.length) {
-    container.innerHTML = `<p style="color:var(--oneui-text-sub);font-size:14px;">
-      Пока нет фото. Снимите что-нибудь в приложении «Камера» — оно появится здесь.</p>`;
-    return;
-  }
-  container.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"></div>`;
-  const grid = container.firstElementChild;
-  photos.forEach((src) => {
-    const img = document.createElement("img");
-    img.src = src;
-    img.style.cssText = "width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;";
-    grid.appendChild(img);
-  });
+/* ============ ЭЛЕМЕНТЫ НАСТРОЕК ============ */
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid #F1F2F4;
+}
+.switch {
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #E4E6E9;
+  position: relative;
+  transition: background 0.2s;
+}
+.switch.on { background: var(--oneui-accent); }
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.switch.on::after { transform: translateX(20px); }
+
+/* ============ ВЫБОР ОБОЕВ В НАСТРОЙКАХ ============ */
+.wallpaper-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 14px 0;
+}
+.wallpaper-thumb {
+  aspect-ratio: 9 / 16; /* пропорции экрана телефона — обои "во весь экран" */
+  border-radius: 14px;
+  border: 2px solid transparent;
+  position: relative;
+}
+.wallpaper-thumb.active {
+  border-color: var(--oneui-accent);
+}
+.wallpaper-thumb.active::after {
+  content: "✓";
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 18px; height: 18px;
+  background: var(--oneui-accent);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: КОНТАКТЫ (реальное сохранение своих контактов)
-// ============================================================
-function renderContactsApp(container) {
-  const load = () => JSON.parse(localStorage.getItem("oneui_contacts") || "[]");
-  const save = (list) => localStorage.setItem("oneui_contacts", JSON.stringify(list));
-
-  function draw() {
-    const contacts = load();
-    container.innerHTML = `
-      <div style="display:flex;gap:8px;margin-bottom:14px;">
-        <input id="ct-name" placeholder="Имя" style="flex:1;border:none;background:var(--oneui-bg);
-          border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);" />
-        <input id="ct-phone" placeholder="Номер" style="flex:1;border:none;background:var(--oneui-bg);
-          border-radius:12px;padding:10px;font-size:14px;color:var(--oneui-text-main);" />
-        <button id="ct-add" style="border:none;background:var(--oneui-accent);color:#fff;
-          width:40px;border-radius:12px;font-size:18px;">+</button>
-      </div>
-      <div id="ct-list"></div>
-    `;
-    const list = container.querySelector("#ct-list");
-    contacts.forEach((c, i) => {
-      const row = document.createElement("div");
-      row.className = "folder-row";
-      row.innerHTML = `
-        <div class="icon-glyph">👤</div>
-        <div style="flex:1;"><div class="folder-row-title">${c.name}</div><div class="folder-row-meta">${c.phone}</div></div>
-        <button data-i="${i}" style="border:none;background:none;color:var(--oneui-text-sub);font-size:16px;">✕</button>
-      `;
-      row.querySelector("button").addEventListener("click", () => {
-        const updated = load(); updated.splice(i, 1); save(updated); draw();
-      });
-      list.appendChild(row);
-    });
-
-    container.querySelector("#ct-add").addEventListener("click", () => {
-      const name = container.querySelector("#ct-name").value.trim();
-      const phone = container.querySelector("#ct-phone").value.trim();
-      if (!name || !phone) return;
-      const updated = load(); updated.push({ name, phone }); save(updated); draw();
-    });
-  }
-
-  draw();
+/* ============ ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ (день/ночь/авто) ============ */
+.theme-segment {
+  display: flex;
+  background: var(--oneui-bg);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 3px;
+}
+.theme-segment button {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--oneui-text-sub);
+  border-radius: 999px;
+}
+.theme-segment button.active {
+  background: var(--oneui-card);
+  color: var(--oneui-text-main);
+  box-shadow: var(--oneui-shadow);
 }
 
-// ============================================================
-//  ПРИЛОЖЕНИЕ: КАЛЕНДАРЬ (настоящий текущий месяц)
-// ============================================================
-function renderCalendarApp(container) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  // в JS воскресенье = 0, а нам нужно, чтобы неделя начиналась с понедельника
-  const startOffset = (firstDay.getDay() + 6) % 7;
-
-  let cells = "";
-  for (let i = 0; i < startOffset; i++) cells += `<div></div>`;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const isToday = d === now.getDate();
-    cells += `<div style="text-align:center;padding:8px 0;border-radius:10px;font-size:13px;
-      ${isToday ? "background:var(--oneui-accent);color:#fff;font-weight:700;" : "color:var(--oneui-text-main);"}">${d}</div>`;
-  }
-
-  container.innerHTML = `
-    <p style="font-weight:700;font-size:16px;margin-bottom:12px;text-transform:capitalize;">
-      ${now.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}
-    </p>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:11px;color:var(--oneui-text-sub);margin-bottom:6px;">
-      ${["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map((d) => `<div style="text-align:center;">${d}</div>`).join("")}
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">${cells}</div>
-  `;
+/* ============ ОБЩИЙ СПИСОК-СТРОКА (Мои файлы / О телефоне) ============ */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #F1F2F4;
+  font-size: 14px;
 }
+.info-row span:first-child { color: var(--oneui-text-sub); }
+.info-row span:last-child { font-weight: 600; text-align: right; }
 
-// ============================================================
-//  ЛАУНЧЕР ВНЕШНИХ СЕРВИСОВ (Spotify / YT Music / Facebook / Gemini / Google Play)
-// ============================================================
-// Настоящие эти сервисы работают только под своим аккаунтом — встроить их внутрь чужого
-// мини-приложения технически нельзя (X-Frame-Options), поэтому кнопка открывает
-// настоящий сайт/приложение через tg.openLink(), как и Chrome/Google выше.
-function renderExternalApp(container, name, url) {
-  container.innerHTML = `
-    <p style="font-size:14px;color:var(--oneui-text-sub);margin-bottom:14px;">
-      ${name} откроется в отдельном окне — как настоящее приложение, установленное на телефоне.
-    </p>
-    <button id="ext-open" style="width:100%;border:none;background:var(--oneui-accent);color:#fff;
-      padding:14px;border-radius:999px;font-weight:700;">Открыть ${name}</button>
-  `;
-  container.querySelector("#ext-open").addEventListener("click", () => tg.openLink(url));
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid #F1F2F4;
 }
-
-// ============================================================
-//  ПРИЛОЖЕНИЕ: О СИСТЕМЕ
-// ============================================================
-function renderAboutApp(container) {
-  container.innerHTML = `
-    <p><b>OneUI OS (симулятор)</b></p>
-    <p>Версия MVP. Работает внутри Telegram Mini App.</p>
-  `;
+.folder-row .icon-glyph {
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  background: var(--oneui-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
 }
+.folder-row-title { font-weight: 600; font-size: 14px; }
+.folder-row-meta { font-size: 12px; color: var(--oneui-text-sub); }
 
-// ============================================================
-//  ЭКРАН БЛОКИРОВКИ
-// ============================================================
-function setupLockScreen() {
-  const lock = document.getElementById("lock-screen");
-  const desktop = document.getElementById("desktop");
-
-  function unlock() {
-    lock.classList.remove("active");
-    desktop.classList.add("active");
-    tg.HapticFeedback.impactOccurred("medium");
-  }
-
-  document.getElementById("lock-unlock").addEventListener("click", unlock);
-
-  // свайп вверх по всему экрану блокировки тоже разблокирует, как на настоящем телефоне
-  let startY = 0;
-  lock.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });
-  lock.addEventListener("touchend", (e) => {
-    if (startY - e.changedTouches[0].clientY > 80) unlock();
-  }, { passive: true });
+/* ============ МИНИ-БРАУЗЕР (Chrome / Google) ============ */
+.browser-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
 }
-
-function tickLockClock() {
-  const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  const lockTime = document.getElementById("lock-time");
-  const lockDate = document.getElementById("lock-date");
-  if (lockTime) lockTime.textContent = timeStr;
-  if (lockDate) lockDate.textContent = `${WEEKDAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+.browser-bar input {
+  flex: 1;
+  border: none;
+  background: var(--oneui-bg);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--oneui-text-main);
 }
-
-// ============================================================
-//  ШТОРКА БЫСТРЫХ НАСТРОЕК
-// ============================================================
-const QUICK_TOGGLES = [
-  { id: "wifi", icon: "📶", label: "Wi-Fi" },
-  { id: "bt", icon: "🔵", label: "Bluetooth" },
-  { id: "flash", icon: "🔦", label: "Фонарик" },
-  { id: "dnd", icon: "🌙", label: "Не беспокоить" },
-];
-
-function setupQuickPanel() {
-  const panel = document.getElementById("quick-panel");
-  const toggles = document.getElementById("quick-toggles");
-
-  QUICK_TOGGLES.forEach((t) => {
-    const btn = document.createElement("button");
-    btn.className = "quick-toggle";
-    btn.textContent = t.icon;
-    btn.title = t.label;
-    // визуальные переключатели-заглушки — подключите к реальным Web API (например, факел через camera track),
-    // когда будете реализовывать эти функции по-настоящему
-    btn.addEventListener("click", () => btn.classList.toggle("active"));
-    toggles.appendChild(btn);
-  });
-
-  document.getElementById("status-bar").addEventListener("click", () => {
-    panel.classList.toggle("open");
-  });
+.browser-bar button {
+  border: none;
+  background: var(--oneui-accent);
+  color: #fff;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
 }
-
-// ============================================================
-//  ПОИСК НА РАБОЧЕМ СТОЛЕ
-// ============================================================
-function setupDesktopSearch() {
-  document.getElementById("desktop-search").addEventListener("click", () => {
-    openWindow("google"); // используем уже готовое приложение Google/браузер
-  });
-}
-
-// ============================================================
-//  СТАРТ
-// ============================================================
-applyTheme();
-applyWallpaper();
-renderDesktop();
-setupSwipeGestures();
-setupNavBar();
-setupLockScreen();
-setupQuickPanel();
-setupDesktopSearch();
-tickLockClock();
-setInterval(tickLockClock, 1000 * 30);
-
-// Регистрируем service worker — без него сайт не пройдёт проверку PWABuilder на "устанавливаемость"
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js").catch(() => {
-    // если запуск не через https (например, локальный файл без сервера) — просто игнорируем ошибку
-  });
+.browser-hint {
+  font-size: 13px;
+  color: var(--oneui-text-sub);
+  line-height: 1.5;
 }
